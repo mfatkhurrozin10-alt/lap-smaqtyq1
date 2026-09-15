@@ -523,7 +523,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </form>
       )}
 
-      {/* TAB 2: RIWAYAT (PERSIS SEPERTI GAMBAR DENGAN TOMBOL DETAIL, EDIT, HAPUS) */}
+      {/* TAB 2: RIWAYAT (DENGAN PEMOTONGAN SISWA ABSEN DAN TOMBOL DETAIL) */}
       {activeSubTab === 'riwayat' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
@@ -556,44 +556,49 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                     <td colSpan={9} className="text-center py-12 text-slate-400">Belum ada log riwayat pengawasan untuk program ini.</td>
                   </tr>
                 ) : (
-                  riwayatList.map((item: any, idx: number) => (
-                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-slate-400">{idx + 1}</td>
-                      <td className="px-6 py-4 text-slate-600 text-xs">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj}</td>
-                      <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target}</td>
-                      <td className="px-6 py-4 text-slate-600">{item.mapel_kelas}</td>
-                      <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>
-                      <td className="px-6 py-4 font-black text-blue-600">{item.skor_persen}%</td>
-                      <td className="px-6 py-4 text-slate-500 italic max-w-xs truncate">{item.catatan_temuan || '-'}</td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="inline-flex items-center gap-1.5">
-                          {/* TOMBOL DETAIL (MUNCULKAN MODAL POP-UP) */}
-                          <button 
-                            onClick={() => setSelectedDetailLog(item)} 
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
-                            title="Lihat Detail"
-                          >
-                            <Eye size={13} /> Detail
-                          </button>
-                          <button 
-                            onClick={() => handleEditLog(item)} 
-                            className="p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors" 
-                            title="Edit Data"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteLog(item.id)} 
-                            className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors" 
-                            title="Hapus Data"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  riwayatList.map((item: any, idx: number) => {
+                    // Batasi teks siswa absen di baris tabel agar tidak kepanjangan
+                    const absenText = item.santri_absen || 'Nihil';
+                    const shortenedAbsen = absenText.length > 18 ? absenText.substring(0, 15) + '...' : absenText;
+
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 font-mono text-slate-400">{idx + 1}</td>
+                        <td className="px-6 py-4 text-slate-600 text-xs">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj}</td>
+                        <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target}</td>
+                        <td className="px-6 py-4 text-slate-600">{item.mapel_kelas}</td>
+                        <td className="px-6 py-4 text-slate-600" title={absenText}>{shortenedAbsen}</td>
+                        <td className="px-6 py-4 font-black text-blue-600">{item.skor_persen}%</td>
+                        <td className="px-6 py-4 text-slate-500 italic max-w-xs truncate">{item.catatan_temuan || '-'}</td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="inline-flex items-center gap-1.5">
+                            <button 
+                              onClick={() => setSelectedDetailLog(item)} 
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
+                              title="Lihat Detail"
+                            >
+                              <Eye size={13} /> Detail
+                            </button>
+                            <button 
+                              onClick={() => handleEditLog(item)} 
+                              className="p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors" 
+                              title="Edit Data"
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteLog(item.id)} 
+                              className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors" 
+                              title="Hapus Data"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -601,7 +606,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
       )}
 
-      {/* POP-UP MODAL DETAIL HASIL PENGAWASAN (PERSIS SEPERTI GAMBAR) */}
+      {/* POP-UP MODAL DETAIL (NAMA GURU/SASARAN DIBUAT FLEKSIBEL & TIDAK TERPOTONG) */}
       {selectedDetailLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-6 relative animate-in fade-in zoom-in duration-200">
@@ -631,16 +636,17 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">KELAS & JAM</p>
-                <h4 className="text-sm font-bold text-slate-800 truncate">{selectedDetailLog.mapel_kelas}</h4>
+                <h4 className="text-xs font-bold text-slate-800 break-words">{selectedDetailLog.mapel_kelas}</h4>
                 <p className="text-[11px] text-slate-500">Jam: {selectedDetailLog.jam_pembelajaran || '1-2'}</p>
               </div>
+              {/* NAMA GURU/SASARAN DIBUAT OTOMATIS TURUN BARIS JIKA PANJANG */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">GURU / SASARAN</p>
-                <h4 className="text-sm font-bold text-slate-800 truncate">{selectedDetailLog.guru_target}</h4>
+                <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.guru_target}</h4>
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SISWA TIDAK HADIR</p>
-                <h4 className="text-sm font-bold text-slate-800 truncate">{selectedDetailLog.santri_absen || 'Nihil'}</h4>
+                <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.santri_absen || 'Nihil'}</h4>
               </div>
             </div>
 
@@ -664,7 +670,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                   Object.entries(selectedDetailLog.detail_ceklis)
                     .filter(([_, val]) => val === true)
                     .map(([key], i) => {
-                      // Cari nama butir berdasarkan ID dari kategoriList aktif
                       let namaButirItem = key;
                       kategoriList.forEach(kat => {
                         kat.divisi_butir_ceklis?.forEach((b: any) => {
