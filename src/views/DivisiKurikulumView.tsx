@@ -1,7 +1,7 @@
 // src/views/DivisiKurikulumView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X } from 'lucide-react';
+import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function DivisiKurikulumView({ showNotification }: any) {
   const [loading, setLoading] = useState(true);
@@ -36,6 +36,12 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const [kategoriList, setKategoriList] = useState<any[]>([]);
   const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>({});
   const [riwayatList, setRiwayatList] = useState<any[]>([]);
+  
+  // State Paginasi & Filter Bulan Riwayat
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
+  const itemsPerPage = 10;
+
   const [formConfig, setFormConfig] = useState<any>({
     show_petugas: true,
     show_guru: true,
@@ -106,6 +112,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
 
       const { data: riw } = await supabase.from('divisi_log_pengawasan').select('*').eq('program_id', selectedProgramId).order('waktu_input', { ascending: false });
       setRiwayatList(riw || []);
+      setCurrentPage(1); // Reset ke halaman 1 saat program berubah
     } catch (err: any) {
       console.error(err);
     }
@@ -115,20 +122,26 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     fetchProgramDetail();
   }, [selectedProgramId]);
 
+  // Kalkulasi Skor Real-Time untuk Form
+  const calculateCurrentScore = () => {
+    let totalButir = 0;
+    let temuanAktif = 0;
+    kategoriList.forEach(kat => {
+      kat.divisi_butir_ceklis?.forEach((butir: any) => {
+        totalButir++;
+        if (checkedItems[butir.id]) temuanAktif++;
+      });
+    });
+    const skorPersen = totalButir > 0 ? Number(((1 - (temuanAktif / totalButir)) * 100).toFixed(1)) : 100;
+    const skala = Number((skorPersen / 33.3).toFixed(2));
+    return { skorPersen, skala };
+  };
+
+  const { skorPersen: currentSkorPersen, skala: currentSkala } = calculateCurrentScore();
+
   const handleSubmitCeklis = async (e: any) => {
     e.preventDefault();
     try {
-      let totalButir = 0;
-      let temuanAktif = 0;
-      kategoriList.forEach(kat => {
-        kat.divisi_butir_ceklis?.forEach((butir: any) => {
-          totalButir++;
-          if (checkedItems[butir.id]) temuanAktif++;
-        });
-      });
-
-      const skor = totalButir > 0 ? Number(((1 - (temuanAktif / totalButir)) * 100).toFixed(1)) : 100;
-
       const payload = {
         program_id: selectedProgramId,
         waktu_input: new Date().toISOString(),
@@ -138,7 +151,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         jam_pembelajaran: formInput.jam_pembelajaran,
         santri_absen: formInput.santri_absen,
         catatan_temuan: formInput.catatan,
-        skor_persen: skor,
+        skor_persen: currentSkorPersen,
         detail_ceklis: checkedItems
       };
 
@@ -292,6 +305,18 @@ export default function DivisiKurikulumView({ showNotification }: any) {
 
   const filteredProgramsByTime = programList.filter((p: any) => !p.timeframe || p.timeframe.toLowerCase() === timeframe.toLowerCase());
   const selectedProgramObj = programList.find((p: any) => p.id === selectedProgramId);
+
+  // Filter riwayat berdasarkan bulan
+  const filteredRiwayatByMonth = riwayatList.filter((item: any) => {
+    if (selectedMonthFilter === 'all') return true;
+    const itemMonth = new Date(item.waktu_input).toISOString().slice(0, 7); // Format "YYYY-MM"
+    return itemMonth === selectedMonthFilter;
+  });
+
+  // Paginasi Data (10 data per halaman)
+  const totalPages = Math.ceil(filteredRiwayatByMonth.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentRiwayatPageData = filteredRiwayatByMonth.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
@@ -505,30 +530,63 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none h-24 resize-none font-medium text-slate-800"
               />
             </div>
-            <div className="flex items-center justify-end gap-3">
-              {editingLogId && (
-                <button 
-                  type="button" 
-                  onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: 'Ustadz / Ustadzah Pemantau', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
-                  className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
-                >
-                  Batal Edit
+
+            {/* KOTAK SKOR TERKALKULASI REAL-TIME */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200 gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-slate-500 uppercase">Skor Terkalkulasi:</span>
+                <div className="px-4 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl font-black text-sm shadow-2xs">
+                  {currentSkorPersen}% ({currentSkala} / 3.0)
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                {editingLogId && (
+                  <button 
+                    type="button" 
+                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: 'Ustadz / Ustadzah Pemantau', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
+                    className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
+                  >
+                    Batal Edit
+                  </button>
+                )}
+                <button type="submit" className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-all">
+                  {editingLogId ? 'Simpan Perubahan Data' : 'Simpan Laporan Ceklis'}
                 </button>
-              )}
-              <button type="submit" className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-all">
-                {editingLogId ? 'Simpan Perubahan Data' : 'Kirim & Simpan Pengawasan'}
-              </button>
+              </div>
             </div>
+
           </div>
         </form>
       )}
 
-      {/* TAB 2: RIWAYAT (DENGAN PEMOTONGAN SISWA ABSEN DAN TOMBOL DETAIL) */}
+      {/* TAB 2: RIWAYAT (DENGAN FILTER BULAN DAN 10 DATA PER HALAMAN) */}
       {activeSubTab === 'riwayat' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-bold text-slate-800">LOG RIWAYAT PENGAWASAN ({riwayatList.length} DATA)</h3>
+          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <h3 className="font-bold text-slate-800">LOG RIWAYAT PENGAWASAN ({filteredRiwayatByMonth.length} DATA)</h3>
+            
             <div className="flex items-center gap-3">
+              {/* Filter Bulan */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500">Bulan:</span>
+                <select
+                  value={selectedMonthFilter}
+                  onChange={(e) => { setSelectedMonthFilter(e.target.value); setCurrentPage(1); }}
+                  className="py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                >
+                  <option value="all">Semua Bulan</option>
+                  {Array.from(new Set(riwayatList.map(item => new Date(item.waktu_input).toISOString().slice(0, 7)))).map((monthStr: any) => {
+                    const [y, m] = monthStr.split('-');
+                    const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                    const label = `${monthNames[parseInt(m) - 1]} ${y}`;
+                    return (
+                      <option key={monthStr} value={monthStr}>{label}</option>
+                    );
+                  })}
+                </select>
+              </div>
+
               <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors">
                 <Printer size={14} /> Cetak
               </button>
@@ -551,19 +609,19 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {riwayatList.length === 0 ? (
+                {currentRiwayatPageData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12 text-slate-400">Belum ada log riwayat pengawasan untuk program ini.</td>
+                    <td colSpan={9} className="text-center py-12 text-slate-400">Belum ada log riwayat pengawasan pada filter ini.</td>
                   </tr>
                 ) : (
-                  riwayatList.map((item: any, idx: number) => {
-                    // Batasi teks siswa absen di baris tabel agar tidak kepanjangan
+                  currentRiwayatPageData.map((item: any, idx: number) => {
                     const absenText = item.santri_absen || 'Nihil';
                     const shortenedAbsen = absenText.length > 18 ? absenText.substring(0, 15) + '...' : absenText;
+                    const absoluteIndex = startIndex + idx + 1;
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4 font-mono text-slate-400">{idx + 1}</td>
+                        <td className="px-6 py-4 font-mono text-slate-400">{absoluteIndex}</td>
                         <td className="px-6 py-4 text-slate-600 text-xs">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
                         <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj}</td>
                         <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target}</td>
@@ -603,15 +661,41 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               </tbody>
             </table>
           </div>
+
+          {/* NAVIGASI PAGINASI (MAKSIMAL 10 DATA PER HALAMAN) */}
+          {filteredRiwayatByMonth.length > 0 && (
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
+              <p>Menampilkan {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredRiwayatByMonth.length)} dari {filteredRiwayatByMonth.length} data</p>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="font-bold px-3 py-1 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                  Hal {currentPage} dari {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* POP-UP MODAL DETAIL (NAMA GURU/SASARAN DIBUAT FLEKSIBEL & TIDAK TERPOTONG) */}
+      {/* POP-UP MODAL DETAIL */}
       {selectedDetailLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-6 relative animate-in fade-in zoom-in duration-200">
             
-            {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
@@ -627,7 +711,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               </button>
             </div>
 
-            {/* Ringkasan Grid Kotak Atas */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SKOR KEPATUHAN</p>
@@ -639,7 +722,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 <h4 className="text-xs font-bold text-slate-800 break-words">{selectedDetailLog.mapel_kelas}</h4>
                 <p className="text-[11px] text-slate-500">Jam: {selectedDetailLog.jam_pembelajaran || '1-2'}</p>
               </div>
-              {/* NAMA GURU/SASARAN DIBUAT OTOMATIS TURUN BARIS JIKA PANJANG */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">GURU / SASARAN</p>
                 <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.guru_target}</h4>
@@ -650,13 +732,11 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               </div>
             </div>
 
-            {/* Petugas & Waktu */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-500 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
               <p>Petugas Pemantau (PJ): <span className="font-semibold text-slate-700">{selectedDetailLog.petugas_pj}</span></p>
               <p>Waktu Input: <span className="font-semibold text-slate-700">{new Date(selectedDetailLog.waktu_input).toLocaleString('id-ID')}</span></p>
             </div>
 
-            {/* Rincian Indikator Masalah / Temuan Dicentang */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">RINCIAN INDIKATOR MASALAH / TEMUAN DICENTANG</h4>
@@ -689,7 +769,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               </div>
             </div>
 
-            {/* Catatan Tambahan & Evaluasi Lengkap */}
             <div className="space-y-1.5">
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">CATATAN TAMBAHAN & EVALUASI PENGAWAS</h4>
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm text-slate-700 font-medium whitespace-pre-wrap">
@@ -697,7 +776,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               </div>
             </div>
 
-            {/* Tombol Tutup */}
             <div className="flex justify-end pt-2">
               <button 
                 onClick={() => setSelectedDetailLog(null)} 
