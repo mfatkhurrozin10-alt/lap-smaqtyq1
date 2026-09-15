@@ -9,11 +9,10 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
   const [tabunganData, setTabunganData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [filterKelas, setFilterKelas] = useState(''); // Default kosong, akan diisi otomatis ke kelas pertama
+  const [filterKelas, setFilterKelas] = useState(''); 
   
-  // State tambahan untuk Filter Tabungan Kosong dan Pengurutan (Sorting)
-  const [filterStatusTabungan, setFilterStatusTabungan] = useState('ALL'); // 'ALL' | 'KOSONG' | 'ADA'
-  const [sortBy, setSortBy] = useState('nama_asc'); // 'nama_asc' | 'saldo_desc' | 'saldo_asc' | 'kelas_asc'
+  const [filterStatusTabungan, setFilterStatusTabungan] = useState('ALL'); 
+  const [sortBy, setSortBy] = useState('nama_asc'); 
 
   const fetchTabunganAll = async () => {
     setLoading(true);
@@ -58,21 +57,17 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
     return Array.from(new Set(tabunganData.map(s => s.kelas?.trim()).filter(Boolean))).sort();
   }, [tabunganData]);
 
-  // Set otomatis filter kelas ke kelas pertama saat data dan daftar kelas siap
   useEffect(() => {
     if (availableClasses.length > 0 && !filterKelas) {
       setFilterKelas(availableClasses[0]);
     }
   }, [availableClasses, filterKelas]);
 
-  // Filter dan Sorting digabungkan secara dinamis
   const filteredTabungan = useMemo(() => {
-    // 1. Filter Data
     const filtered = tabunganData.filter(item => {
       const matchesSearch = (item.nama || '').toLowerCase().includes(search.toLowerCase()) || String(item.nis || item.nisn || '').includes(search);
       const matchesKelas = filterKelas === 'ALL' || (item.kelas || '').trim() === filterKelas;
       
-      // Filter status tabungan (Kosong vs Ada isi)
       const saldoVal = Number(item.saldo || 0);
       const matchesStatusTabungan = 
         filterStatusTabungan === 'ALL' || 
@@ -82,7 +77,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
       return matchesSearch && matchesKelas && matchesStatusTabungan;
     });
 
-    // 2. Sorting Data
     return filtered.sort((a, b) => {
       if (sortBy === 'saldo_desc') {
         return Number(b.saldo || 0) - Number(a.saldo || 0);
@@ -98,7 +92,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
         }
         return (a.nama || '').localeCompare(b.nama || '');
       }
-      // Default: nama_asc
       return (a.nama || '').localeCompare(b.nama || '');
     });
   }, [tabunganData, search, filterKelas, filterStatusTabungan, sortBy]);
@@ -107,39 +100,46 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
     return tabunganData.reduce((acc, curr) => acc + Number(curr.saldo || 0), 0);
   }, [tabunganData]);
 
-  // 1. Hitung 5 Peringkat Tertinggi Tabungan
   const top5Tabungan = useMemo(() => {
     return [...tabunganData]
       .sort((a, b) => Number(b.saldo || 0) - Number(a.saldo || 0))
       .slice(0, 5);
   }, [tabunganData]);
 
-  // 2. Olah Data untuk Grafik Garis Perkembangan per Hari
+  // Format tanggal menjadi DD-MM saja dan urutkan
   const chartData = useMemo(() => {
     const dailyMap: { [key: string]: number } = {};
     
     tabunganData.forEach(siswa => {
       if (siswa.history && Array.isArray(siswa.history)) {
         siswa.history.forEach((h: any) => {
-          const tgl = h.tanggal; // Format: DD/MM/YYYY atau YYYY-MM-DD
+          const rawTgl = h.tanggal; // Contoh: "2026-09-10" atau "10/09/2026"
           const nominal = Number(h.nominal || 0);
-          if (tgl) {
-            dailyMap[tgl] = (dailyMap[tgl] || 0) + nominal;
+          if (rawTgl) {
+            let formattedDate = rawTgl;
+            // Ubah format YYYY-MM-DD atau DD/MM/YYYY menjadi DD-MM
+            if (rawTgl.includes('-')) {
+              const parts = rawTgl.split('-'); // [YYYY, MM, DD] atau [DD, MM, YYYY]
+              if (parts[0].length === 4) {
+                formattedDate = `${parts[2]}-${parts[1]}`;
+              } else {
+                formattedDate = `${parts[0]}-${parts[1]}`;
+              }
+            } else if (rawTgl.includes('/')) {
+              const parts = rawTgl.split('/'); // [DD, MM, YYYY]
+              formattedDate = `${parts[0]}-${parts[1]}`;
+            }
+
+            dailyMap[formattedDate] = (dailyMap[formattedDate] || 0) + nominal;
           }
         });
       }
     });
 
-    // Urutkan berdasarkan tanggal
     const sortedDates = Object.keys(dailyMap).sort((a, b) => {
-      const parseDate = (dateStr: string) => {
-        if (dateStr.includes('/')) {
-          const [d, m, y] = dateStr.split('/').map(Number);
-          return new Date(y, m - 1, d).getTime();
-        }
-        return new Date(dateStr).getTime();
-      };
-      return parseDate(a) - parseDate(b);
+      const [dA, mA] = a.split('-').map(Number);
+      const [dB, mB] = b.split('-').map(Number);
+      return (mA - mB) || (dA - dB);
     });
 
     return sortedDates.map(tgl => ({
@@ -150,7 +150,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
 
   return (
     <div className="space-y-6 w-full text-left">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Kelola Tabungan Siswa</h2>
@@ -161,7 +160,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
         </button>
       </div>
 
-      {/* Kartu Statistik Utama */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Seluruh Tabungan Santri</span>
@@ -173,10 +171,9 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
         </div>
       </div>
 
-      {/* Grid Bagian Atas: 5 Peringkat & Grafik Perkembangan */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* 1. Top 5 Peringkat Tertinggi */}
+        {/* Top 5 Peringkat */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -215,7 +212,7 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
           </div>
         </div>
 
-        {/* 2. Grafik Garis Perkembangan Setoran per Hari */}
+        {/* Grafik Perkembangan Transaksi Harian */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -228,35 +225,32 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
             </div>
 
             {loading ? (
-              <div className="h-56 flex items-center justify-center text-xs text-slate-400">Memuat grafik...</div>
+              <div className="h-64 flex items-center justify-center text-xs text-slate-400">Memuat grafik...</div>
             ) : chartData.length === 0 ? (
-              <div className="h-56 flex items-center justify-center text-xs text-slate-400">Belum ada data riwayat transaksi harian.</div>
+              <div className="h-64 flex items-center justify-center text-xs text-slate-400">Belum ada data riwayat transaksi harian.</div>
             ) : (
-              <div className="pt-4">
-                {/* SVG Line Chart yang Diperlebar & Diberi Ruang Label Bawah */}
-                <div className="w-full h-56 overflow-x-auto pb-6">
-                  <svg className="w-full h-full min-w-[650px]" viewBox="0 0 700 200" preserveAspectRatio="none">
-                    {/* Grid Garis Latar Belakang */}
-                    <line x1="0" y1="30" x2="700" y2="30" stroke="#f1f5f9" strokeWidth="1" />
-                    <line x1="0" y1="90" x2="700" y2="90" stroke="#f1f5f9" strokeWidth="1" />
-                    <line x1="0" y1="150" x2="700" y2="150" stroke="#f1f5f9" strokeWidth="1" />
+              <div className="pt-2">
+                {/* SVG Line Chart dengan Label Tanggal Miring (DD-MM) */}
+                <div className="w-full h-64 overflow-x-auto pb-4">
+                  <svg className="w-full h-full min-w-[700px]" viewBox="0 0 750 220" preserveAspectRatio="none">
+                    <line x1="0" y1="30" x2="750" y2="30" stroke="#f1f5f9" strokeWidth="1" />
+                    <line x1="0" y1="90" x2="750" y2="90" stroke="#f1f5f9" strokeWidth="1" />
+                    <line x1="0" y1="150" x2="750" y2="150" stroke="#f1f5f9" strokeWidth="1" />
 
-                    {/* Kalkulasi Koordinat Line Chart */}
                     {(() => {
                       const maxVal = Math.max(...chartData.map(d => d.total), 1000);
                       const points = chartData.map((d, i) => {
-                        const x = chartData.length === 1 ? 350 : (i / (chartData.length - 1)) * 640 + 30;
+                        const x = chartData.length === 1 ? 375 : (i / (chartData.length - 1)) * 680 + 35;
                         const y = 150 - (d.total / maxVal) * 110;
                         return `${x},${y}`;
                       }).join(' ');
 
-                      const firstX = chartData.length === 1 ? 350 : 30;
-                      const lastX = chartData.length === 1 ? 350 : 670;
+                      const firstX = chartData.length === 1 ? 375 : 35;
+                      const lastX = chartData.length === 1 ? 375 : 715;
                       const areaPoints = `${firstX},160 ${points} ${lastX},160`;
 
                       return (
                         <>
-                          {/* Area Gradien di Bawah Garis */}
                           <defs>
                             <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
                               <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
@@ -265,7 +259,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
                           </defs>
                           <polygon points={areaPoints} fill="url(#grad)" />
 
-                          {/* Garis Grafik Utama */}
                           <polyline
                             fill="none"
                             stroke="#059669"
@@ -275,21 +268,21 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
                             points={points}
                           />
 
-                          {/* Titik Data (Dots) & Label Angka di atas Titik */}
                           {chartData.map((d, i) => {
-                            const x = chartData.length === 1 ? 350 : (i / (chartData.length - 1)) * 640 + 30;
+                            const x = chartData.length === 1 ? 375 : (i / (chartData.length - 1)) * 680 + 35;
                             const y = 150 - (d.total / maxVal) * 110;
                             return (
                               <g key={i} className="group cursor-pointer">
                                 <circle cx={x} cy={y} r="4.5" fill="#ffffff" stroke="#059669" strokeWidth="2.5" />
-                                {/* Label Tanggal di Sumbu X langsung dalam SVG agar presisi dengan titik */}
+                                {/* Teks Tanggal Miring (Tanpa Tahun, Format: 10-09) */}
                                 <text 
                                   x={x} 
-                                  y="180" 
+                                  y="175" 
                                   fill="#64748b" 
                                   fontSize="10" 
                                   fontWeight="600" 
-                                  textAnchor="middle"
+                                  textAnchor="end"
+                                  transform={`rotate(-35, ${x}, 175)`}
                                 >
                                   {d.tanggal}
                                 </text>
@@ -313,7 +306,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
         title="Daftar Saldo Tabungan Peserta Didik"
         action={
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {/* Filter Kelas */}
             <select 
               value={filterKelas} 
               onChange={(e) => setFilterKelas(e.target.value)} 
@@ -323,7 +315,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
               {availableClasses.map(cls => <option key={cls} value={cls}>Kelas {cls}</option>)}
             </select>
 
-            {/* Filter Status Tabungan (Kosong / Ada Saldo) */}
             <select 
               value={filterStatusTabungan} 
               onChange={(e) => setFilterStatusTabungan(e.target.value)} 
@@ -334,7 +325,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
               <option value="ADA">Ada Saldo (&gt; Rp 0)</option>
             </select>
 
-            {/* Pilihan Sorting (Urutkan Berdasarkan) */}
             <select 
               value={sortBy} 
               onChange={(e) => setSortBy(e.target.value)} 
@@ -346,7 +336,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
               <option value="kelas_asc">Urut Berdasarkan Kelas</option>
             </select>
 
-            {/* Input Pencarian */}
             <div className="relative w-full sm:w-48">
               <input 
                 type="text" 
