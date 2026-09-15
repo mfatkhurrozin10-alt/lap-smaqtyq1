@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { Icons } from '../Icons';
-import { Settings } from 'lucide-react';
+import { Settings, Edit2 } from 'lucide-react';
 
 export default function KelolaDivisiView({ showNotification }: any) {
   const [activeTab, setActiveTab] = useState<'divisi' | 'iku' | 'program'>('divisi');
@@ -17,8 +17,9 @@ export default function KelolaDivisiView({ showNotification }: any) {
   // Filter States
   const [filterDivisi, setFilterDivisi] = useState('ALL');
 
-  // Modal States
+  // Modal & Edit States
   const [modalType, setModalType] = useState<'divisi' | 'iku' | 'program' | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   
   // Form States
   const [formDivisi, setFormDivisi] = useState({ kode_divisi: '', nama_divisi: '', nama_koordinator: '' });
@@ -55,16 +56,49 @@ export default function KelolaDivisiView({ showNotification }: any) {
     return programList.filter(item => filterDivisi === 'ALL' || item.divisi_id === filterDivisi);
   }, [programList, filterDivisi]);
 
-  // Handlers Submit Form
+  // Handler Open Modal for Create
+  const handleOpenAdd = (type: 'divisi' | 'iku' | 'program') => {
+    setEditId(null);
+    if (type === 'divisi') setFormDivisi({ kode_divisi: '', nama_divisi: '', nama_koordinator: '' });
+    if (type === 'iku') setFormIku({ divisi_id: '', kode_iku: '', judul_iku: '' });
+    if (type === 'program') setFormProgram({ divisi_id: '', iku_id: '', nama_program: '', timeframe: 'Harian', target_capaian: '100%' });
+    setModalType(type);
+  };
+
+  // Handler Open Modal for Edit
+  const handleOpenEdit = (type: 'divisi' | 'iku' | 'program', item: any) => {
+    setEditId(item.id);
+    if (type === 'divisi') {
+      setFormDivisi({ kode_divisi: item.kode_divisi, nama_divisi: item.nama_divisi, nama_koordinator: item.nama_koordinator || '' });
+    } else if (type === 'iku') {
+      setFormIku({ divisi_id: item.divisi_id, kode_iku: item.kode_iku, judul_iku: item.judul_iku });
+    } else if (type === 'program') {
+      setFormProgram({ 
+        divisi_id: item.divisi_id, 
+        iku_id: item.iku_id || '', 
+        nama_program: item.nama_program, 
+        timeframe: item.timeframe || 'Harian', 
+        target_capaian: item.target_capaian || '100%' 
+      });
+    }
+    setModalType(type);
+  };
+
+  // Handlers Submit Form (Create & Update)
   const handleSubmitDivisi = async (e: any) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.from('divisi').insert([formDivisi]);
-      if (error) throw error;
-      showNotification('Divisi berhasil ditambahkan', 'success');
+      if (editId) {
+        const { error } = await supabase.from('divisi').update(formDivisi).eq('id', editId);
+        if (error) throw error;
+        showNotification('Divisi berhasil diperbarui', 'success');
+      } else {
+        const { error } = await supabase.from('divisi').insert([formDivisi]);
+        if (error) throw error;
+        showNotification('Divisi berhasil ditambahkan', 'success');
+      }
       setModalType(null);
-      setFormDivisi({ kode_divisi: '', nama_divisi: '', nama_koordinator: '' });
       fetchData();
     } catch (err: any) {
       showNotification(err.message, 'error');
@@ -77,11 +111,16 @@ export default function KelolaDivisiView({ showNotification }: any) {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.from('indikator_iku').insert([formIku]);
-      if (error) throw error;
-      showNotification('Indikator IKU berhasil ditambahkan', 'success');
+      if (editId) {
+        const { error } = await supabase.from('indikator_iku').update(formIku).eq('id', editId);
+        if (error) throw error;
+        showNotification('Indikator IKU berhasil diperbarui', 'success');
+      } else {
+        const { error } = await supabase.from('indikator_iku').insert([formIku]);
+        if (error) throw error;
+        showNotification('Indikator IKU berhasil ditambahkan', 'success');
+      }
       setModalType(null);
-      setFormIku({ divisi_id: '', kode_iku: '', judul_iku: '' });
       fetchData();
     } catch (err: any) {
       showNotification(err.message, 'error');
@@ -98,11 +137,16 @@ export default function KelolaDivisiView({ showNotification }: any) {
         ...formProgram,
         iku_id: formProgram.iku_id === '' ? null : formProgram.iku_id
       };
-      const { error } = await supabase.from('program_kegiatan').insert([payload]);
-      if (error) throw error;
-      showNotification('Program berhasil ditambahkan', 'success');
+      if (editId) {
+        const { error } = await supabase.from('program_kegiatan').update(payload).eq('id', editId);
+        if (error) throw error;
+        showNotification('Program berhasil diperbarui', 'success');
+      } else {
+        const { error } = await supabase.from('program_kegiatan').insert([payload]);
+        if (error) throw error;
+        showNotification('Program berhasil ditambahkan', 'success');
+      }
       setModalType(null);
-      setFormProgram({ divisi_id: '', iku_id: '', nama_program: '', timeframe: 'Harian', target_capaian: '100%' });
       fetchData();
     } catch (err: any) {
       showNotification(err.message, 'error');
@@ -136,7 +180,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
           <p className="text-sm text-slate-500 mt-1">Kelola data master sistem monitoring pendidikan secara langsung ke database Supabase</p>
         </div>
         <button 
-          onClick={() => setModalType(activeTab)}
+          onClick={() => handleOpenAdd(activeTab)}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-md"
         >
           <Icons.Plus /> 
@@ -247,7 +291,10 @@ export default function KelolaDivisiView({ showNotification }: any) {
                       <td className="px-6 py-4 text-center font-black text-slate-800">{totalIku}</td>
                       <td className="px-6 py-4 text-center font-black text-slate-800">{totalProgram}</td>
                       <td className="px-6 py-4 text-center">
-                        <button onClick={() => handleDelete('divisi', item.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"><Icons.Trash /></button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => handleOpenEdit('divisi', item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Divisi"><Edit2 size={16} /></button>
+                          <button onClick={() => handleDelete('divisi', item.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Hapus Divisi"><Icons.Trash /></button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -264,7 +311,10 @@ export default function KelolaDivisiView({ showNotification }: any) {
                       <td className="px-6 py-4 text-slate-500">{item.divisi?.nama_divisi || '-'}</td>
                       <td className="px-6 py-4 text-center font-black text-slate-800">{totalProgram}</td>
                       <td className="px-6 py-4 text-center">
-                        <button onClick={() => handleDelete('indikator_iku', item.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"><Icons.Trash /></button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => handleOpenEdit('iku', item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit IKU"><Edit2 size={16} /></button>
+                          <button onClick={() => handleDelete('indikator_iku', item.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Hapus IKU"><Icons.Trash /></button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -289,7 +339,10 @@ export default function KelolaDivisiView({ showNotification }: any) {
                     <td className="px-6 py-4 text-slate-700">{item.timeframe}</td>
                     <td className="px-6 py-4 font-semibold text-blue-700">{item.target_capaian}</td>
                     <td className="px-6 py-4 text-center">
-                      <button onClick={() => handleDelete('program_kegiatan', item.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"><Icons.Trash /></button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => handleOpenEdit('program', item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Program"><Edit2 size={16} /></button>
+                        <button onClick={() => handleDelete('program_kegiatan', item.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Hapus Program"><Icons.Trash /></button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -299,14 +352,14 @@ export default function KelolaDivisiView({ showNotification }: any) {
         </div>
       </div>
 
-      {/* --- MODAL TAMBAH DATA --- */}
+      {/* --- MODAL TAMBAH & EDIT DATA --- */}
       {modalType && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-slate-900">
-                Tambah Data Baru: {modalType === 'divisi' ? 'Divisi Kerja' : modalType === 'iku' ? 'Indikator IKU' : 'Program Kegiatan'}
+                {editId ? 'Edit Data' : 'Tambah Data Baru'}: {modalType === 'divisi' ? 'Divisi Kerja' : modalType === 'iku' ? 'Indikator IKU' : 'Program Kegiatan'}
               </h3>
               <button onClick={() => setModalType(null)} className="text-slate-400 hover:text-slate-700"><Icons.X /></button>
             </div>
@@ -328,7 +381,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
                   </div>
                   <div className="pt-4 flex justify-end gap-3">
                     <button type="button" onClick={() => setModalType(null)} className="px-5 py-2.5 text-sm font-semibold text-slate-600">Batal</button>
-                    <button type="submit" disabled={loading} className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md disabled:opacity-50">Simpan Divisi</button>
+                    <button type="submit" disabled={loading} className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md disabled:opacity-50">{editId ? 'Perbarui Divisi' : 'Simpan Divisi'}</button>
                   </div>
                 </form>
               )}
@@ -352,7 +405,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
                   </div>
                   <div className="pt-4 flex justify-end gap-3">
                     <button type="button" onClick={() => setModalType(null)} className="px-5 py-2.5 text-sm font-semibold text-slate-600">Batal</button>
-                    <button type="submit" disabled={loading} className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md disabled:opacity-50">Simpan IKU</button>
+                    <button type="submit" disabled={loading} className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md disabled:opacity-50">{editId ? 'Perbarui IKU' : 'Simpan IKU'}</button>
                   </div>
                 </form>
               )}
@@ -398,7 +451,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
                   </div>
                   <div className="pt-4 flex justify-end gap-3">
                     <button type="button" onClick={() => setModalType(null)} className="px-5 py-2.5 text-sm font-semibold text-slate-600">Batal</button>
-                    <button type="submit" disabled={loading} className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md disabled:opacity-50">Simpan Program</button>
+                    <button type="submit" disabled={loading} className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md disabled:opacity-50">{editId ? 'Perbarui Program' : 'Simpan Program'}</button>
                   </div>
                 </form>
               )}
