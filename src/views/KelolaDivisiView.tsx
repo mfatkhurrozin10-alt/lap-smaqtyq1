@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { Icons } from '../Icons';
+import { Settings } from 'lucide-react';
 
 export default function KelolaDivisiView({ showNotification }: any) {
   const [activeTab, setActiveTab] = useState<'divisi' | 'iku' | 'program'>('divisi');
@@ -168,7 +169,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
           </button>
         </div>
 
-        {/* Filter Dropdown (Hanya muncul di IKU dan Program) */}
+        {/* Filter Dropdown */}
         {(activeTab === 'iku' || activeTab === 'program') && (
           <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-4 bg-slate-50/50">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Filter Divisi:</span>
@@ -193,7 +194,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
                 
-                {/* Header Tabel Divisi */}
+                {/* Header Divisi */}
                 {activeTab === 'divisi' && (
                   <tr>
                     <th className="px-6 py-4">No</th>
@@ -206,7 +207,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
                   </tr>
                 )}
 
-                {/* Header Tabel IKU */}
+                {/* Header IKU */}
                 {activeTab === 'iku' && (
                   <tr>
                     <th className="px-6 py-4">No</th>
@@ -218,7 +219,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
                   </tr>
                 )}
 
-                {/* Header Tabel Program */}
+                {/* Header Program */}
                 {activeTab === 'program' && (
                   <tr>
                     <th className="px-6 py-4">No</th>
@@ -233,7 +234,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 
-                {/* Body Tabel Divisi */}
+                {/* Body Divisi */}
                 {activeTab === 'divisi' && divisiList.map((item, idx) => {
                   const totalIku = ikuList.filter(i => i.divisi_id === item.id).length;
                   const totalProgram = programList.filter(p => p.divisi_id === item.id).length;
@@ -252,7 +253,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
                   );
                 })}
 
-                {/* Body Tabel IKU */}
+                {/* Body IKU */}
                 {activeTab === 'iku' && filteredIku.map((item, idx) => {
                   const totalProgram = programList.filter(p => p.iku_id === item.id).length;
                   return (
@@ -269,7 +270,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
                   );
                 })}
 
-                {/* Body Tabel Program */}
+                {/* Body Program */}
                 {activeTab === 'program' && filteredProgram.map((item, idx) => (
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 font-mono text-slate-400">{idx + 1}</td>
@@ -303,7 +304,6 @@ export default function KelolaDivisiView({ showNotification }: any) {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             
-            {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-slate-900">
                 Tambah Data Baru: {modalType === 'divisi' ? 'Divisi Kerja' : modalType === 'iku' ? 'Indikator IKU' : 'Program Kegiatan'}
@@ -311,10 +311,7 @@ export default function KelolaDivisiView({ showNotification }: any) {
               <button onClick={() => setModalType(null)} className="text-slate-400 hover:text-slate-700"><Icons.X /></button>
             </div>
 
-            {/* Modal Body & Form */}
             <div className="p-6">
-              
-              {/* Form Tambah Divisi */}
               {modalType === 'divisi' && (
                 <form onSubmit={handleSubmitDivisi} className="space-y-4">
                   <div>
@@ -336,7 +333,6 @@ export default function KelolaDivisiView({ showNotification }: any) {
                 </form>
               )}
 
-              {/* Form Tambah IKU */}
               {modalType === 'iku' && (
                 <form onSubmit={handleSubmitIku} className="space-y-4">
                   <div>
@@ -361,7 +357,6 @@ export default function KelolaDivisiView({ showNotification }: any) {
                 </form>
               )}
 
-              {/* Form Tambah Program */}
               {modalType === 'program' && (
                 <form onSubmit={handleSubmitProgram} className="space-y-4">
                   <div>
