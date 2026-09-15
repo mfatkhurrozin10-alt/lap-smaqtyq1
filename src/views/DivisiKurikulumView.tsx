@@ -21,7 +21,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const [mapelList, setMapelList] = useState<any[]>([]);
 
   const [formInput, setFormInput] = useState({
-    petugas_pj: 'Ustadz / Ustadzah Pemantau',
+    petugas_pj: '',
     guru_target: '',
     mapel_kelas: '',
     kelas_dipilih: '',
@@ -37,7 +37,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>({});
   const [riwayatList, setRiwayatList] = useState<any[]>([]);
   
-  // State Paginasi & Filter Bulan Riwayat
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
   const itemsPerPage = 10;
@@ -56,6 +55,19 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   
   const [inputButirBaru, setInputButirBaru] = useState<{ [key: string]: string }>({});
   const [showInputButir, setShowInputButir] = useState<{ [key: string]: boolean }>({});
+
+  // Helper Warna Berdasarkan Skor
+  const getScoreColorClass = (score: number) => {
+    if (score > 66) return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+    if (score > 33) return 'text-amber-600 bg-amber-50 border-amber-200';
+    return 'text-rose-600 bg-rose-50 border-rose-200';
+  };
+
+  const getScoreTextColor = (score: number) => {
+    if (score > 66) return 'text-emerald-600';
+    if (score > 33) return 'text-amber-600';
+    return 'text-rose-600';
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -112,7 +124,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
 
       const { data: riw } = await supabase.from('divisi_log_pengawasan').select('*').eq('program_id', selectedProgramId).order('waktu_input', { ascending: false });
       setRiwayatList(riw || []);
-      setCurrentPage(1); // Reset ke halaman 1 saat program berubah
+      setCurrentPage(1);
     } catch (err: any) {
       console.error(err);
     }
@@ -122,7 +134,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     fetchProgramDetail();
   }, [selectedProgramId]);
 
-  // Kalkulasi Skor Real-Time untuk Form
   const calculateCurrentScore = () => {
     let totalButir = 0;
     let temuanAktif = 0;
@@ -167,7 +178,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       }
 
       setCheckedItems({});
-      setFormInput({ ...formInput, guru_target: '', mapel_kelas: '', kelas_dipilih: '', catatan: '' });
+      setFormInput({ ...formInput, petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', catatan: '' });
       fetchProgramDetail();
       setActiveSubTab('riwayat');
     } catch (err: any) {
@@ -306,17 +317,17 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const filteredProgramsByTime = programList.filter((p: any) => !p.timeframe || p.timeframe.toLowerCase() === timeframe.toLowerCase());
   const selectedProgramObj = programList.find((p: any) => p.id === selectedProgramId);
 
-  // Filter riwayat berdasarkan bulan
   const filteredRiwayatByMonth = riwayatList.filter((item: any) => {
     if (selectedMonthFilter === 'all') return true;
-    const itemMonth = new Date(item.waktu_input).toISOString().slice(0, 7); // Format "YYYY-MM"
+    const itemMonth = new Date(item.waktu_input).toISOString().slice(0, 7);
     return itemMonth === selectedMonthFilter;
   });
 
-  // Paginasi Data (10 data per halaman)
   const totalPages = Math.ceil(filteredRiwayatByMonth.length / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentRiwayatPageData = filteredRiwayatByMonth.slice(startIndex, startIndex + itemsPerPage);
+
+  const averageRealisasi = riwayatList.length > 0 ? (riwayatList.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen), 0) / riwayatList.length) : 0;
 
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
@@ -415,7 +426,14 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               {formConfig.show_petugas && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadz / Petugas Pemantau (PJ):</label>
-                  <input type="text" value={formInput.petugas_pj} onChange={e => setFormInput({...formInput, petugas_pj: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800" required />
+                  <input 
+                    type="text" 
+                    value={formInput.petugas_pj} 
+                    onChange={e => setFormInput({...formInput, petugas_pj: e.target.value})} 
+                    placeholder="Masukan Nama" 
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800 placeholder:text-slate-400" 
+                    required 
+                  />
                 </div>
               )}
 
@@ -535,7 +553,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200 gap-4">
               <div className="flex items-center gap-3">
                 <span className="text-xs font-bold text-slate-500 uppercase">Skor Terkalkulasi:</span>
-                <div className="px-4 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl font-black text-sm shadow-2xs">
+                <div className={`px-4 py-1.5 border rounded-xl font-black text-sm shadow-2xs ${getScoreColorClass(currentSkorPersen)}`}>
                   {currentSkorPersen}% ({currentSkala} / 3.0)
                 </div>
               </div>
@@ -544,7 +562,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 {editingLogId && (
                   <button 
                     type="button" 
-                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: 'Ustadz / Ustadzah Pemantau', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
+                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
                     className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
                   >
                     Batal Edit
@@ -560,14 +578,13 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </form>
       )}
 
-      {/* TAB 2: RIWAYAT (DENGAN FILTER BULAN DAN 10 DATA PER HALAMAN) */}
+      {/* TAB 2: RIWAYAT */}
       {activeSubTab === 'riwayat' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <h3 className="font-bold text-slate-800">LOG RIWAYAT PENGAWASAN ({filteredRiwayatByMonth.length} DATA)</h3>
             
             <div className="flex items-center gap-3">
-              {/* Filter Bulan */}
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500">Bulan:</span>
                 <select
@@ -618,6 +635,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                     const absenText = item.santri_absen || 'Nihil';
                     const shortenedAbsen = absenText.length > 18 ? absenText.substring(0, 15) + '...' : absenText;
                     const absoluteIndex = startIndex + idx + 1;
+                    const skorVal = Number(item.skor_persen);
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
@@ -627,7 +645,9 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                         <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target}</td>
                         <td className="px-6 py-4 text-slate-600">{item.mapel_kelas}</td>
                         <td className="px-6 py-4 text-slate-600" title={absenText}>{shortenedAbsen}</td>
-                        <td className="px-6 py-4 font-black text-blue-600">{item.skor_persen}%</td>
+                        <td className={`px-6 py-4 font-black ${getScoreTextColor(skorVal)}`}>
+                          {skorVal}%
+                        </td>
                         <td className="px-6 py-4 text-slate-500 italic max-w-xs truncate">{item.catatan_temuan || '-'}</td>
                         <td className="px-6 py-4 text-center">
                           <div className="inline-flex items-center gap-1.5">
@@ -662,7 +682,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             </table>
           </div>
 
-          {/* NAVIGASI PAGINASI (MAKSIMAL 10 DATA PER HALAMAN) */}
           {filteredRiwayatByMonth.length > 0 && (
             <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
               <p>Menampilkan {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredRiwayatByMonth.length)} dari {filteredRiwayatByMonth.length} data</p>
@@ -714,7 +733,9 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SKOR KEPATUHAN</p>
-                <h4 className="text-2xl font-black text-blue-600">{selectedDetailLog.skor_persen}%</h4>
+                <h4 className={`text-2xl font-black ${getScoreTextColor(Number(selectedDetailLog.skor_persen))}`}>
+                  {selectedDetailLog.skor_persen}%
+                </h4>
                 <p className="text-[11px] text-slate-500">Skala: {(selectedDetailLog.skor_persen / 33.3).toFixed(2)} / 3.0</p>
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
@@ -799,8 +820,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
           </div>
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
             <p className="text-xs font-bold text-slate-400 uppercase">Realisasi Tercapai</p>
-            <h3 className="text-3xl font-black text-blue-600">
-              {riwayatList.length > 0 ? (riwayatList.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen), 0) / riwayatList.length).toFixed(1) : 0}%
+            <h3 className={`text-3xl font-black ${getScoreTextColor(averageRealisasi)}`}>
+              {averageRealisasi.toFixed(1)}%
             </h3>
             <p className="text-xs text-slate-500">Rata-rata kepatuhan dari {riwayatList.length} sesi</p>
           </div>
