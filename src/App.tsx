@@ -5,12 +5,12 @@ import { Notification } from './components/UIComponents';
 
 // Mengimpor View 
 import KelolaNilaiView from './views/KelolaNilaiView';
-import KelolaKehadiranAdminView from './views/KelolaKehadiranAdminView';
+import SistemAbsensiView from './views/SistemAbsensiView'; // <-- 1. Import view absensi yang baru digabung
 import KelolaTabunganAdminView from './views/KelolaTabunganAdminView';
 import KelolaPoinAdminView from './views/KelolaPoinAdminView';
 import KelolaDivisiView from './views/KelolaDivisiView';
 import DivisiKurikulumView from './views/DivisiKurikulumView';
-import LaporanIkuUnitView from './views/LaporanIkuUnitView'; // <-- 1. Import view Laporan IKU Unit
+import LaporanIkuUnitView from './views/LaporanIkuUnitView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('divisi-kurikulum');
@@ -39,7 +39,6 @@ export default function App() {
           </div>
         );
       
-      // 2. Hubungkan 'laporan-iku' ke komponen LaporanIkuUnitView
       case 'laporan-iku':
         return <LaporanIkuUnitView showNotification={showNotification} />;
 
@@ -47,7 +46,8 @@ export default function App() {
         return <KelolaNilaiView user={currentUser} showNotification={showNotification} />;
       
       case 'presensi-absensi':
-        return <KelolaKehadiranAdminView user={currentUser} showNotification={showNotification} />;
+        // 2. Hubungkan 'presensi-absensi' ke komponen SistemAbsensiView
+        return <SistemAbsensiView user={currentUser} showNotification={showNotification} />;
 
       case 'tabungan-santri':
         return <KelolaTabunganAdminView user={currentUser} showNotification={showNotification} />;
