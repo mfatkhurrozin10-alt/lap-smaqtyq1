@@ -16,7 +16,7 @@ import {
 
 export default function DashboardLayout({ activeTab, setActiveTab, children }: any) {
   
-  // Fungsi kecil untuk mempermudah render menu
+  // Fungsi kecil untuk mempermudah render menu utama
   const MenuItem = ({ id, icon, label, badge, badgeColor }: any) => {
     const isActive = activeTab === id;
     return (
@@ -29,9 +29,7 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
         }`}
       >
         <div className="flex items-center gap-3 overflow-hidden">
-          {/* Tambahkan shrink-0 agar ikon tidak gepeng */}
           <div className="shrink-0">{icon}</div>
-          {/* Ubah text-sm menjadi text-xs dan tambahkan truncate */}
           <span className="text-[13px] font-medium truncate">{label}</span>
         </div>
         {badge && (
@@ -43,13 +41,21 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
     );
   };
 
-  const SubMenuItem = ({ icon, label }: any) => (
-    <button className="w-full flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-left overflow-hidden">
-      <div className="shrink-0">{icon}</div>
-      {/* Ubah text-sm menjadi text-xs dan tambahkan truncate */}
-      <span className="text-[13px] truncate">{label}</span>
-    </button>
-  );
+  // SubMenuItem yang sudah mendukung interaksi klik (aktif/tidak aktif)
+  const SubMenuItem = ({ id, icon, label }: any) => {
+    const isActive = activeTab === id;
+    return (
+      <button 
+        onClick={() => setActiveTab(id)}
+        className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-left overflow-hidden mb-1 ${
+          isActive ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+        }`}
+      >
+        <div className="shrink-0">{icon}</div>
+        <span className="text-[13px] truncate">{label}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="flex h-screen bg-[#f3f4f6] font-sans overflow-hidden">
@@ -84,12 +90,12 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
           {/* Sub Menu Divisi Kerja (IKU) */}
           <div className="mt-8 text-left">
             <p className="text-xs font-bold text-slate-500 mb-3 px-4 uppercase tracking-wider">DIVISI KERJA (IKU)</p>
-            <SubMenuItem icon={<BookOpen size={16} />} label="Kurikulum" />
-            <SubMenuItem icon={<Users size={16} />} label="Kesiswaan" />
-            <SubMenuItem icon={<Globe size={16} />} label="Humas" />
-            <SubMenuItem icon={<Archive size={16} />} label="Sarpras dan Bendahara" />
-            <SubMenuItem icon={<Award size={16} />} label="Bahasa & Prestasi" />
-            <SubMenuItem icon={<Briefcase size={16} />} label="Tata Usaha" />
+            <SubMenuItem id="divisi-kurikulum" icon={<BookOpen size={16} />} label="Kurikulum" />
+            <SubMenuItem id="divisi-kesiswaan" icon={<Users size={16} />} label="Kesiswaan" />
+            <SubMenuItem id="divisi-humas" icon={<Globe size={16} />} label="Humas" />
+            <SubMenuItem id="divisi-sarpras" icon={<Archive size={16} />} label="Sarpras dan Bendahara" />
+            <SubMenuItem id="divisi-bahasa" icon={<Award size={16} />} label="Bahasa & Prestasi" />
+            <SubMenuItem id="divisi-tata-usaha" icon={<Briefcase size={16} />} label="Tata Usaha" />
           </div>
         </div>
 
