@@ -1,7 +1,7 @@
 // src/views/DivisiKurikulumView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer } from 'lucide-react';
+import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X } from 'lucide-react';
 
 export default function DivisiKurikulumView({ showNotification }: any) {
   const [loading, setLoading] = useState(true);
@@ -31,6 +31,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   });
 
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [selectedDetailLog, setSelectedDetailLog] = useState<any | null>(null);
 
   const [kategoriList, setKategoriList] = useState<any[]>([]);
   const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>({});
@@ -324,7 +325,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               <option value="">Tidak ada program {timeframe}</option>
             ) : (
               filteredProgramsByTime.map((p: any) => (
-                <option key={p.id} value={p.id}>{p.nama_program}</option>
+                <option key={p.id} value={p.id}>{p.nama_program} ({riwayatList.length} data)</option>
               ))
             )}
           </select>
@@ -522,25 +523,28 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </form>
       )}
 
-      {/* TAB 2: RIWAYAT (DENGAN TOMBOL EDIT & HAPUS) */}
+      {/* TAB 2: RIWAYAT (PERSIS SEPERTI GAMBAR DENGAN TOMBOL DETAIL, EDIT, HAPUS) */}
       {activeSubTab === 'riwayat' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-bold text-slate-800">Log Riwayat Pengawasan ({timeframe}) - {riwayatList.length} Data</h3>
-            <button onClick={() => window.print()} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors">
-              <Printer size={14} /> Cetak Laporan
-            </button>
+            <h3 className="font-bold text-slate-800">LOG RIWAYAT PENGAWASAN ({riwayatList.length} DATA)</h3>
+            <div className="flex items-center gap-3">
+              <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors">
+                <Printer size={14} /> Cetak
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
+              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-4">No</th>
                   <th className="px-6 py-4">Waktu</th>
                   <th className="px-6 py-4">Petugas (PJ)</th>
-                  <th className="px-6 py-4">Ustadz / Target</th>
-                  <th className="px-6 py-4">Mapel / Kelas</th>
+                  <th className="px-6 py-4">Guru / Target</th>
+                  <th className="px-6 py-4">Mapel & Kelas</th>
+                  <th className="px-6 py-4">Siswa Absen</th>
                   <th className="px-6 py-4">Skor</th>
                   <th className="px-6 py-4">Catatan</th>
                   <th className="px-6 py-4 text-center">Aksi</th>
@@ -549,33 +553,42 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               <tbody className="divide-y divide-slate-100">
                 {riwayatList.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-slate-400">Belum ada riwayat pengawasan untuk program {timeframe} ini.</td>
+                    <td colSpan={9} className="text-center py-12 text-slate-400">Belum ada log riwayat pengawasan untuk program ini.</td>
                   </tr>
                 ) : (
                   riwayatList.map((item: any, idx: number) => (
                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 font-mono text-slate-400">{idx + 1}</td>
-                      <td className="px-6 py-4 text-slate-600">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-800">{item.petugas_pj}</td>
-                      <td className="px-6 py-4 text-slate-700">{item.guru_target}</td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj}</td>
+                      <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target}</td>
                       <td className="px-6 py-4 text-slate-600">{item.mapel_kelas}</td>
+                      <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>
                       <td className="px-6 py-4 font-black text-blue-600">{item.skor_persen}%</td>
-                      <td className="px-6 py-4 text-slate-500 italic max-w-xs truncate">{item.catatan_temuan}</td>
+                      <td className="px-6 py-4 text-slate-500 italic max-w-xs truncate">{item.catatan_temuan || '-'}</td>
                       <td className="px-6 py-4 text-center">
                         <div className="inline-flex items-center gap-1.5">
+                          {/* TOMBOL DETAIL (MUNCULKAN MODAL POP-UP) */}
+                          <button 
+                            onClick={() => setSelectedDetailLog(item)} 
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
+                            title="Lihat Detail"
+                          >
+                            <Eye size={13} /> Detail
+                          </button>
                           <button 
                             onClick={() => handleEditLog(item)} 
-                            className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" 
+                            className="p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors" 
                             title="Edit Data"
                           >
-                            <Edit size={15} />
+                            <Edit size={14} />
                           </button>
                           <button 
                             onClick={() => handleDeleteLog(item.id)} 
                             className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors" 
                             title="Hapus Data"
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
@@ -584,6 +597,111 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* POP-UP MODAL DETAIL HASIL PENGAWASAN (PERSIS SEPERTI GAMBAR) */}
+      {selectedDetailLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-6 relative animate-in fade-in zoom-in duration-200">
+            
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Eye size={20} className="text-blue-600" /> Detail Hasil Pengawasan & Evaluasi
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Program: <span className="font-semibold text-slate-700">{selectedProgramObj?.nama_program}</span> • ID #{selectedDetailLog.id.slice(-4)}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedDetailLog(null)} 
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Ringkasan Grid Kotak Atas */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SKOR KEPATUHAN</p>
+                <h4 className="text-2xl font-black text-blue-600">{selectedDetailLog.skor_persen}%</h4>
+                <p className="text-[11px] text-slate-500">Skala: {(selectedDetailLog.skor_persen / 33.3).toFixed(2)} / 3.0</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">KELAS & JAM</p>
+                <h4 className="text-sm font-bold text-slate-800 truncate">{selectedDetailLog.mapel_kelas}</h4>
+                <p className="text-[11px] text-slate-500">Jam: {selectedDetailLog.jam_pembelajaran || '1-2'}</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">GURU / SASARAN</p>
+                <h4 className="text-sm font-bold text-slate-800 truncate">{selectedDetailLog.guru_target}</h4>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SISWA TIDAK HADIR</p>
+                <h4 className="text-sm font-bold text-slate-800 truncate">{selectedDetailLog.santri_absen || 'Nihil'}</h4>
+              </div>
+            </div>
+
+            {/* Petugas & Waktu */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-500 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
+              <p>Petugas Pemantau (PJ): <span className="font-semibold text-slate-700">{selectedDetailLog.petugas_pj}</span></p>
+              <p>Waktu Input: <span className="font-semibold text-slate-700">{new Date(selectedDetailLog.waktu_input).toLocaleString('id-ID')}</span></p>
+            </div>
+
+            {/* Rincian Indikator Masalah / Temuan Dicentang */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">RINCIAN INDIKATOR MASALAH / TEMUAN DICENTANG</h4>
+                <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100">
+                  {selectedDetailLog.detail_ceklis ? Object.values(selectedDetailLog.detail_ceklis).filter(Boolean).length : 0} Temuan
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 max-h-40 overflow-y-auto">
+                {selectedDetailLog.detail_ceklis && Object.keys(selectedDetailLog.detail_ceklis).length > 0 ? (
+                  Object.entries(selectedDetailLog.detail_ceklis)
+                    .filter(([_, val]) => val === true)
+                    .map(([key], i) => {
+                      // Cari nama butir berdasarkan ID dari kategoriList aktif
+                      let namaButirItem = key;
+                      kategoriList.forEach(kat => {
+                        kat.divisi_butir_ceklis?.forEach((b: any) => {
+                          if (b.id === key) namaButirItem = b.nama_butir;
+                        });
+                      });
+                      return (
+                        <div key={i} className="flex items-center gap-2 p-3 bg-rose-50/50 border border-rose-100 rounded-xl text-xs font-medium text-rose-900">
+                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                          <span className="truncate">{namaButirItem}</span>
+                        </div>
+                      );
+                    })
+                ) : (
+                  <p className="text-xs text-slate-400 italic py-2 col-span-2">Tidak ada indikator bermasalah yang dicentang (Semua sesuai standar / bersih).</p>
+                )}
+              </div>
+            </div>
+
+            {/* Catatan Tambahan & Evaluasi Lengkap */}
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">CATATAN TAMBAHAN & EVALUASI PENGAWAS</h4>
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm text-slate-700 font-medium whitespace-pre-wrap">
+                {selectedDetailLog.catatan_temuan || 'Tidak ada catatan khusus yang ditambahkan.'}
+              </div>
+            </div>
+
+            {/* Tombol Tutup */}
+            <div className="flex justify-end pt-2">
+              <button 
+                onClick={() => setSelectedDetailLog(null)} 
+                className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl shadow-md transition-all"
+              >
+                Tutup
+              </button>
+            </div>
+
           </div>
         </div>
       )}
