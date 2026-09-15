@@ -18,7 +18,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
 
-  // === STATE KHUSUS INPUT ABSENSI (Dari kode Anda) ===
+  // === STATE KHUSUS INPUT ABSENSI ===
   const [assignedClasses, setAssignedClasses] = useState<string[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<Record<string, string>>({});
 
@@ -65,16 +65,23 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
 
   const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => s.kelas?.trim()).filter(Boolean))).sort(), [siswaList]);
 
-  // 2. Fetch Kelas Binaan BK (Sesuai kode Anda)
+  // 2. Fetch Kelas Binaan BK (Aman dari error UUID untuk akun Admin)
   useEffect(() => {
     const fetchBkClasses = async () => {
-      if (!user?.id) return;
+      // Jika role admin atau ID mengandung string biasa (bukan UUID asli), lewati query bk_mapping
+      if (!user?.id || user.role === 'admin' || user.id === 'admin-123') {
+        if (availableClasses.length > 0) {
+          setAssignedClasses(availableClasses);
+          if (!selectedClass) setSelectedClass(availableClasses[0]);
+        }
+        return;
+      }
+
       try {
         const { data, error } = await supabase.from('bk_mapping').select('kelas').eq('guru_id', user.id);
         if (error) throw error;
         const classes = (data || []).map((m: any) => m.kelas);
         
-        // Gabungkan kelas BK dengan semua kelas yang ada agar Admin tetap bisa absen semua kelas
         const finalClasses = classes.length > 0 ? classes : availableClasses;
         setAssignedClasses(finalClasses);
         
@@ -82,25 +89,26 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
           setSelectedClass(finalClasses[0]);
         }
       } catch (err: any) {
-        showNotification(err.message || 'Gagal memuat kelas binaan', 'error');
+        setAssignedClasses(availableClasses);
+        if (!selectedClass && availableClasses.length > 0) setSelectedClass(availableClasses[0]);
       }
     };
-    if (availableClasses.length > 0) fetchBkClasses();
-  }, [user, availableClasses, selectedClass, showNotification]);
 
-  // 3. Inisialisasi Default 'Hadir' saat Kelas Dipilih (Sesuai kode Anda)
+    if (availableClasses.length > 0) {
+      fetchBkClasses();
+    }
+  }, [user, availableClasses, selectedClass]);
+
+  // 3. Inisialisasi Default 'Hadir' saat Kelas Dipilih
   useEffect(() => {
     if (!selectedClass || siswaList.length === 0) return;
     
     const studentsInClass = siswaList.filter(s => s.kelas?.trim() === selectedClass);
     const initialStatus: Record<string, string> = {};
-    
-    // Cek apakah sudah ada data absen di hari tersebut
     const todayRecords = kehadiranList.filter(k => k.tanggal === selectedDate);
     
     studentsInClass.forEach((s: any) => {
       if (s.id) {
-        // Jika sudah absen sebelumnya, tampilkan statusnya, jika belum default 'Hadir'
         const existingRecord = todayRecords.find(r => r.nisn === s.nisn || r.nisn === s.nis);
         initialStatus[s.id] = existingRecord ? existingRecord.keterangan : 'Hadir';
       }
@@ -109,7 +117,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
   }, [selectedClass, siswaList, selectedDate, kehadiranList]);
 
 
-  // === HANDLER INPUT ABSENSI (Persis seperti kode Anda) ===
+  // === HANDLER INPUT ABSENSI ===
   const handleAttendanceChange = (siswaId: string, status: string) => {
     setAttendanceRecords(prev => ({
       ...prev,
@@ -142,8 +150,8 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
       if (error) throw error;
       
       showNotification(`Berhasil merekam absensi ${payloadList.length} peserta didik!`, 'success');
-      await fetchData(); // Segarkan data rekap harian setelah tersimpan
-      setActiveTab('rekap_harian'); // Otomatis pindah ke tab rekap
+      await fetchData();
+      setActiveTab('rekap_harian');
     } catch (err: any) {
       showNotification(err.message || 'Gagal menyimpan kehadiran', 'error');
     } finally {
@@ -151,7 +159,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     }
   };
 
-  // Navigasi cepat dari Rekap Harian ke Input Form
   const prepareInputData = (kelas: string, date: string) => {
     setSelectedClass(kelas);
     setSelectedDate(date);
@@ -159,7 +166,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
   };
 
 
-  // === DATA PROCESSOR REKAP (Sama seperti sebelumnya) ===
+  // === DATA PROCESSOR REKAP ===
   const dailyData = useMemo(() => {
     const todayRecords = kehadiranList.filter(k => k.tanggal === selectedDate);
     const classMap: Record<string, { total: number, hadir: number, sakit: number, izin: number, alfa: number, absentStudents: any[] }> = {};
@@ -245,20 +252,20 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
         <div className="p-12 text-center text-slate-400 font-medium animate-pulse">Memuat data absensi...</div>
       ) : (
         <>
-          {/* ================= TAB 1: INPUT ABSENSI (KODE ANDA) ================= */}
+          {/* ================= TAB 1: INPUT ABSENSI ================= */}
           {activeTab === 'input' && (
             <div className="space-y-6 w-full text-left animate-in fade-in duration-300">
               
               {assignedClasses.length === 0 ? (
                 <div className="p-8 sm:p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-sm">
-                  <h3 className="text-base sm:text-lg font-bold text-slate-800">Belum Ada Kelas Binaan BK</h3>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-1">Akun Anda belum diatur memiliki kelas binaan oleh Administrator.</p>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-800">Belum Ada Kelas Tersedia</h3>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-1">Belum ada data kelas atau siswa yang terdaftar di sistem.</p>
                 </div>
               ) : (
                 <>
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap items-center gap-4 shadow-sm w-full">
                     <div className="space-y-1">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Pilih Kelas Binaan</label>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Pilih Kelas</label>
                       <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
                         {assignedClasses.map(cls => <option key={cls} value={cls}>Kelas {cls}</option>)}
                       </select>
