@@ -66,7 +66,7 @@ export default function LaporanIkuUnitView({}: any) {
 
       let rawRows: any[] = [];
 
-      // 4. Petakan data mentah terlebih dahulu
+      // 4. Petakan data mentah
       (progList || []).forEach((prog: any) => {
         const ikuId = prog.indikator_id || prog.indikator_iku_id || prog.iku_id;
         const matchedIku = ikuMap.get(ikuId);
@@ -84,8 +84,8 @@ export default function LaporanIkuUnitView({}: any) {
           iku_id: ikuId || 'unknown',
           kode_iku: matchedIku?.kode_iku || prog.kode_iku || 'IKU-UNIT',
           judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.judul_iku || prog.nama_program,
-          // Target prioritas diambil dari target_pencapaian program, jika kosong ambil dari target_deskripsi IKU
-          target: prog.target_pencapaian || matchedIku?.target_deskripsi || '100%',
+          // Target diambil murni dari master/tabel program kegiatan (target_pencapaian)
+          target: prog.target_pencapaian || '100%',
           realisasi: `${avgSkor}%`,
           yayasan: '',
           kegiatan: prog.nama_program || '-',
@@ -94,10 +94,10 @@ export default function LaporanIkuUnitView({}: any) {
         });
       });
 
-      // 5. Urutkan berdasarkan IKU agar yang sama berkumpul
+      // 5. Urutkan berdasarkan IKU
       rawRows.sort((a, b) => a.kode_iku.localeCompare(b.kode_iku));
 
-      // 6. Hitung rowspan (penggabungan sel HANYA untuk kolom NO dan INDIKATOR saja)
+      // 6. Hitung rowspan HANYA untuk kolom NO dan INDIKATOR (Target dibiarkan terpisah per baris kegiatan)
       let finalRows: any[] = [];
       let groupCounter = 1;
       let i = 0;
@@ -250,7 +250,7 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
 
-                      {/* TARGET (Tidak di-merge, tampil per baris kegiatan) */}
+                      {/* TARGET (Sesuai target program kegiatan, tidak di-merge) */}
                       <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 whitespace-nowrap">
                         {row.target}
                       </td>
