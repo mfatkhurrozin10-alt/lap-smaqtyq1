@@ -45,7 +45,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const [newKategoriNama, setNewKategoriNama] = useState('');
   const [newKategoriTipe, setNewKategoriTipe] = useState('Negatif (Dicentang jika bermasalah)');
   
-  // State untuk form input indikator baru per kategori
   const [inputButirBaru, setInputButirBaru] = useState<{ [key: string]: string }>({});
   const [showInputButir, setShowInputButir] = useState<{ [key: string]: boolean }>({});
 
@@ -207,6 +206,23 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       fetchProgramDetail();
     } catch (err: any) {
       if (showNotification) showNotification(err.message, 'error');
+    }
+  };
+
+  const handleToggleConfigField = async (field: string, value: boolean) => {
+    const updated = { ...formConfig, [field]: value };
+    setFormConfig(updated);
+    if (!selectedProgramId) return;
+    try {
+      const { data: existing } = await supabase.from('divisi_form_config').select('id').eq('program_id', selectedProgramId);
+      if (existing && existing.length > 0) {
+        await supabase.from('divisi_form_config').update({ [field]: value }).eq('program_id', selectedProgramId);
+      } else {
+        await supabase.from('divisi_form_config').insert([{ program_id: selectedProgramId, [field]: value }]);
+      }
+      if (showNotification) showNotification('Konfigurasi form disimpan', 'success');
+    } catch (err: any) {
+      console.error(err);
     }
   };
 
@@ -525,10 +541,9 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
       )}
 
-      {/* TAB 4: CUSTOMIZE FORM (SESUAI GAMBAR) */}
+      {/* TAB 4: CUSTOMIZE FORM */}
       {activeSubTab === 'customize' && (
         <div className="space-y-6">
-          {/* PENGATURAN KOLOM DENGAN CENTANG SEMUA & KOSONGKAN SEMUA */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
               <div>
@@ -566,7 +581,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             </div>
           </div>
 
-          {/* TAMBAH KATEGORI BARU */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div>
               <h3 className="font-bold text-slate-800">Pengaturan Kategori & Indikator</h3>
@@ -592,7 +606,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             </form>
           </div>
 
-          {/* DAFTAR KATEGORI & INDIKATOR PERSIS SEPERTI GAMBAR */}
           <div className="space-y-6">
             {kategoriList.map((kat: any) => (
               <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -620,7 +633,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                   ))}
                 </div>
 
-                {/* TOMBOL TAMBAH INDIKATOR BARU BERBENTUK GARIS PUTUS-PUTUS (DASHED) SEPERTI GAMBAR */}
                 {showInputButir[kat.id] ? (
                   <div className="flex gap-2 pt-2">
                     <input 
@@ -654,8 +666,4 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       )}
     </div>
   );
-}
-
-async function handleToggleConfigField(field: string, value: boolean) {
-  // Fungsi pembantu internal konfigurasi
 }
