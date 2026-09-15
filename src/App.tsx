@@ -2,19 +2,16 @@
 import { useState } from 'react';
 import DashboardLayout from './components/DashboardLayout';
 import { Notification } from './components/UIComponents';
-import KelolaDivisiView from './views/KelolaDivisiView';
 
-// Mengimpor View dari file lama Anda
+// Mengimpor View 
 import KelolaNilaiView from './views/KelolaNilaiView';
 import KelolaKehadiranAdminView from './views/KelolaKehadiranAdminView';
 import KelolaTabunganAdminView from './views/KelolaTabunganAdminView';
 import KelolaPoinAdminView from './views/KelolaPoinAdminView';
+import KelolaDivisiView from './views/KelolaDivisiView';
 
 export default function App() {
-  // Set default menu yang terbuka
-  const [activeTab, setActiveTab] = useState('tabungan-santri');
-  
-  // State untuk notifikasi 
+  const [activeTab, setActiveTab] = useState('kelola-divisi');
   const [notification, setNotification] = useState({ message: '', type: '' });
 
   const showNotification = (message: string, type: string) => {
@@ -22,7 +19,6 @@ export default function App() {
     setTimeout(() => setNotification({ message: '', type: '' }), 4000);
   };
 
-  // Akun admin default agar komponen lama tetap berjalan normal tanpa login
   const currentUser = {
     id: 'admin-123',
     nama: 'Administrator',
@@ -42,41 +38,21 @@ export default function App() {
         );
       
       case 'rekap-penilaian':
-        return (
-          <KelolaNilaiView 
-            user={currentUser} 
-            showNotification={showNotification} 
-          />
-        );
+        return <KelolaNilaiView user={currentUser} showNotification={showNotification} />;
       
       case 'presensi-absensi':
-        return (
-          <KelolaKehadiranAdminView 
-            user={currentUser} 
-            showNotification={showNotification} 
-          />
-        );
+        return <KelolaKehadiranAdminView user={currentUser} showNotification={showNotification} />;
 
       case 'tabungan-santri':
-        // Memanggil komponen Tabungan yang sudah terhubung ke Google Sheets & Supabase
-        return (
-          <KelolaTabunganAdminView 
-            user={currentUser} 
-            showNotification={showNotification} 
-          />
-        );
+        return <KelolaTabunganAdminView user={currentUser} showNotification={showNotification} />;
 
       case 'poin-santri':
-        // Memanggil komponen Poin BK/Pelanggaran yang sudah terhubung ke Supabase
-        return (
-          <KelolaPoinAdminView 
-            user={currentUser} 
-            showNotification={showNotification} 
-          />
-        );
+        return <KelolaPoinAdminView user={currentUser} showNotification={showNotification} />;
+
+      case 'kelola-divisi':
+        return <KelolaDivisiView showNotification={showNotification} />;
 
       case 'laporan-iku':
-      case 'kelola-divisi':
         return (
           <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-100 h-full flex items-center justify-center">
             <div className="text-center">
