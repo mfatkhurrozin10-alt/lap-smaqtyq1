@@ -1,7 +1,7 @@
 // src/views/DivisiKesiswaanView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function DivisiKesiswaanView({ showNotification }: any) {
   const [loading, setLoading] = useState(true);
@@ -30,9 +30,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     catatan: ''
   });
 
-  // State untuk nilai kolom kustom dinamis { [fieldId]: value }
-  const [customFormValues, setCustomFormValues] = useState<{ [key: string]: any }>({});
-
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [selectedDetailLog, setSelectedDetailLog] = useState<any | null>(null);
 
@@ -44,26 +41,25 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
   const itemsPerPage = 10;
 
+  // Konfigurasi Kolom & Label Kustom
   const [formConfig, setFormConfig] = useState<any>({
     show_petugas: true,
     show_guru: true,
     show_mapel: true,
     show_kelas: true,
     show_jam: true,
-    show_santri_absen: true
+    show_santri_absen: true,
+    label_petugas: 'Petugas (PJ)',
+    label_guru: 'Wali Kelas / Guru Target',
+    label_mapel: 'Program / Kegiatan',
+    label_kelas: 'Kelas',
+    label_jam: 'Waktu / Sesi',
+    label_santri_absen: 'Santri Absen / Kendala'
   });
 
-  // State untuk Kolom Kustom Tambahan (Tambah & Edit)
-  const [customFieldsList, setCustomFieldsList] = useState<any[]>([]);
-  const [showAddCustomModal, setShowAddCustomModal] = useState(false);
-  const [editingCustomField, setEditingCustomField] = useState<any | null>(null);
-  
-  const [customFieldInput, setCustomFieldInput] = useState({
-    label_kolom: '',
-    tipe_input: 'text', // text, number, select
-    opsi_pilihan: '',   // dipisah koma jika select
-    wajib_isi: false
-  });
+  // State untuk Modal Edit Label Kolom
+  const [editingColumn, setEditingColumn] = useState<string | null>(null);
+  const [tempLabelInput, setTempLabelInput] = useState('');
 
   const [newKategoriNama, setNewKategoriNama] = useState('');
   const [newKategoriTipe, setNewKategoriTipe] = useState('Negatif (Dicentang jika bermasalah)');
@@ -129,12 +125,8 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     try {
       const { data: cfgList } = await supabase.from('divisi_form_config').select('*').eq('program_id', selectedProgramId);
       if (cfgList && cfgList.length > 0) {
-        setFormConfig(cfgList[0]);
+        setFormConfig((prev: any) => ({ ...prev, ...cfgList[0] }));
       }
-
-      // Ambil kolom kustom dinamis
-      const { data: customFields } = await supabase.from('divisi_custom_fields').select('*').eq('program_id', selectedProgramId).order('created_at', { ascending: true });
-      setCustomFieldsList(customFields || []);
 
       const { data: kat } = await supabase.from('divisi_kategori_indikator').select('*, divisi_butir_ceklis(*)').eq('program_id', selectedProgramId).order('urutan');
       setKategoriList(kat || []);
@@ -180,8 +172,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
         santri_absen: formInput.santri_absen,
         catatan_temuan: formInput.catatan,
         skor_persen: currentSkorPersen,
-        detail_ceklis: checkedItems,
-        custom_field_values: customFormValues
+        detail_ceklis: checkedItems
       };
 
       if (editingLogId) {
@@ -196,7 +187,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
       }
 
       setCheckedItems({});
-      setCustomFormValues({});
       setFormInput({ ...formInput, petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', catatan: '' });
       fetchProgramDetail();
       setActiveSubTab('riwayat');
@@ -217,7 +207,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
       catatan: item.catatan_temuan || ''
     });
     setCheckedItems(item.detail_ceklis || {});
-    setCustomFormValues(item.custom_field_values || {});
     setActiveSubTab('form');
   };
 
@@ -227,62 +216,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
       const { error } = await supabase.from('divisi_log_pengawasan').delete().eq('id', logId);
       if (error) throw error;
       if (showNotification) showNotification('Riwayat berhasil dihapus', 'success');
-      fetchProgramDetail();
-    } catch (err: any) {
-      if (showNotification) showNotification(err.message, 'error');
-    }
-  };
-
-  // Handler Manajemen Kolom Kustom (Tambah, Edit, dan Hapus)
-  const handleSaveCustomField = async (e: any) => {
-    e.preventDefault();
-    if (!customFieldInput.label_kolom || !selectedProgramId) return;
-
-    try {
-      const payload = {
-        program_id: selectedProgramId,
-        label_kolom: customFieldInput.label_kolom,
-        tipe_input: customFieldInput.tipe_input,
-        opsi_pilihan: customFieldInput.opsi_pilihan,
-        wajib_isi: customFieldInput.wajib_isi
-      };
-
-      if (editingCustomField) {
-        const { error } = await supabase.from('divisi_custom_fields').update(payload).eq('id', editingCustomField.id);
-        if (error) throw error;
-        if (showNotification) showNotification('Kolom kustom berhasil diperbarui', 'success');
-      } else {
-        const { error } = await supabase.from('divisi_custom_fields').insert([payload]);
-        if (error) throw error;
-        if (showNotification) showNotification('Kolom kustom baru berhasil ditambahkan', 'success');
-      }
-
-      setShowAddCustomModal(false);
-      setEditingCustomField(null);
-      setCustomFieldInput({ label_kolom: '', tipe_input: 'text', opsi_pilihan: '', wajib_isi: false });
-      fetchProgramDetail();
-    } catch (err: any) {
-      if (showNotification) showNotification(err.message, 'error');
-    }
-  };
-
-  const handleOpenEditCustomField = (field: any) => {
-    setEditingCustomField(field);
-    setCustomFieldInput({
-      label_kolom: field.label_kolom || '',
-      tipe_input: field.tipe_input || 'text',
-      opsi_pilihan: field.opsi_pilihan || '',
-      wajib_isi: !!field.wajib_isi
-    });
-    setShowAddCustomModal(true);
-  };
-
-  const handleDeleteCustomField = async (fieldId: string) => {
-    if (!window.confirm('Hapus kolom kustom ini? Data input terkait pada riwayat mungkin tidak akan ditampilkan.')) return;
-    try {
-      const { error } = await supabase.from('divisi_custom_fields').delete().eq('id', fieldId);
-      if (error) throw error;
-      if (showNotification) showNotification('Kolom kustom berhasil dihapus', 'success');
       fetchProgramDetail();
     } catch (err: any) {
       if (showNotification) showNotification(err.message, 'error');
@@ -362,8 +295,40 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     }
   };
 
+  // Fungsi Menyimpan Label Kolom Kustom
+  const handleSaveColumnLabel = async (columnKey: string) => {
+    const labelFieldMap: any = {
+      show_petugas: 'label_petugas',
+      show_guru: 'label_guru',
+      show_mapel: 'label_mapel',
+      show_kelas: 'label_kelas',
+      show_jam: 'label_jam',
+      show_santri_absen: 'label_santri_absen'
+    };
+
+    const dbField = labelFieldMap[columnKey];
+    if (!dbField || !selectedProgramId) return;
+
+    const updatedConfig = { ...formConfig, [dbField]: tempLabelInput };
+    setFormConfig(updatedConfig);
+
+    try {
+      const { data: existing } = await supabase.from('divisi_form_config').select('id').eq('program_id', selectedProgramId);
+      if (existing && existing.length > 0) {
+        await supabase.from('divisi_form_config').update({ [dbField]: tempLabelInput }).eq('program_id', selectedProgramId);
+      } else {
+        await supabase.from('divisi_form_config').insert([{ program_id: selectedProgramId, [dbField]: tempLabelInput }]);
+      }
+      if (showNotification) showNotification('Label kolom berhasil diperbarui!', 'success');
+      setEditingColumn(null);
+    } catch (err: any) {
+      if (showNotification) showNotification(err.message, 'error');
+    }
+  };
+
   const handleSelectAllConfig = async (status: boolean) => {
     const updated = {
+      ...formConfig,
       show_petugas: status,
       show_guru: status,
       show_mapel: status,
@@ -485,7 +450,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <CheckSquare size={18} className="text-blue-600" /> Informasi Pengawasan Kesiswaan & Sasaran Terkait
+                <CheckSquare size={18} className="text-blue-600" /> Informasi Pengawasan & Sasaran Terkait
               </h3>
               {editingLogId && (
                 <span className="text-xs bg-amber-50 text-amber-700 px-3 py-1 rounded-full font-bold border border-amber-200">
@@ -497,7 +462,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {formConfig.show_petugas && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadz / Petugas Pemantau (PJ):</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_petugas}:</label>
                   <input 
                     type="text" 
                     value={formInput.petugas_pj} 
@@ -511,7 +476,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
 
               {formConfig.show_guru && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadz / Target Terkait:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_guru}:</label>
                   <select 
                     value={formInput.guru_target} 
                     onChange={e => setFormInput({...formInput, guru_target: e.target.value})} 
@@ -528,14 +493,14 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
 
               {formConfig.show_mapel && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Bidang / Sektor:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_mapel}:</label>
                   <select 
                     value={formInput.mapel_kelas} 
                     onChange={e => setFormInput({...formInput, mapel_kelas: e.target.value})} 
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
                     required
                   >
-                    <option value="">-- Pilih Bidang / Sektor --</option>
+                    <option value="">-- Pilih Opsi --</option>
                     {mapelList.map((m: any) => (
                       <option key={m.id} value={m.nama_mapel}>{m.nama_mapel} ({m.kode})</option>
                     ))}
@@ -545,14 +510,14 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
 
               {formConfig.show_kelas && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kategori / Ruang:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_kelas}:</label>
                   <select 
                     value={formInput.kelas_dipilih} 
                     onChange={e => setFormInput({...formInput, kelas_dipilih: e.target.value})} 
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
                     required
                   >
-                    <option value="">-- Pilih Kategori / Ruang --</option>
+                    <option value="">-- Pilih Kelas --</option>
                     {kelasList.map((kls: string, idx: number) => (
                       <option key={idx} value={kls}>{kls}</option>
                     ))}
@@ -562,57 +527,17 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
 
               {formConfig.show_jam && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Waktu / Sesi:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_jam}:</label>
                   <input type="text" value={formInput.jam_pembelajaran} onChange={e => setFormInput({...formInput, jam_pembelajaran: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800" />
                 </div>
               )}
 
               {formConfig.show_santri_absen && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Keterangan Tambahan:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_santri_absen}:</label>
                   <input type="text" value={formInput.santri_absen} onChange={e => setFormInput({...formInput, santri_absen: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800" />
                 </div>
               )}
-
-              {/* Render Kolom Kustom Dinamis */}
-              {customFieldsList.map((cf: any) => (
-                <div key={cf.id}>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    {cf.label_kolom} {cf.wajib_isi && <span className="text-rose-500">*</span>}:
-                  </label>
-                  {cf.tipe_input === 'select' ? (
-                    <select
-                      value={customFormValues[cf.id] || ''}
-                      onChange={e => setCustomFormValues({ ...customFormValues, [cf.id]: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
-                      required={cf.wajib_isi}
-                    >
-                      <option value="">-- Pilih {cf.label_kolom} --</option>
-                      {cf.opsi_pilihan ? cf.opsi_pilihan.split(',').map((opt: string, i: number) => (
-                        <option key={i} value={opt.trim()}>{opt.trim()}</option>
-                      )) : null}
-                    </select>
-                  ) : cf.tipe_input === 'number' ? (
-                    <input
-                      type="number"
-                      value={customFormValues[cf.id] || ''}
-                      onChange={e => setCustomFormValues({ ...customFormValues, [cf.id]: e.target.value })}
-                      placeholder={`Masukkan ${cf.label_kolom}`}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800"
-                      required={cf.wajib_isi}
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={customFormValues[cf.id] || ''}
-                      onChange={e => setCustomFormValues({ ...customFormValues, [cf.id]: e.target.value })}
-                      placeholder={`Masukkan ${cf.label_kolom}`}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800"
-                      required={cf.wajib_isi}
-                    />
-                  )}
-                </div>
-              ))}
             </div>
           </div>
 
@@ -673,7 +598,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
                 {editingLogId && (
                   <button 
                     type="button" 
-                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); setCustomFormValues({}); }}
+                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
                     className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
                   >
                     Batal Edit
@@ -725,10 +650,10 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
                 <tr>
                   <th className="px-6 py-4">No</th>
                   <th className="px-6 py-4">Waktu</th>
-                  <th className="px-6 py-4">Petugas (PJ)</th>
-                  <th className="px-6 py-4">Sasaran / Target</th>
-                  <th className="px-6 py-4">Sektor & Ruang</th>
-                  <th className="px-6 py-4">Keterangan</th>
+                  <th className="px-6 py-4">{formConfig.label_petugas}</th>
+                  <th className="px-6 py-4">{formConfig.label_guru}</th>
+                  <th className="px-6 py-4">{formConfig.label_mapel} & {formConfig.label_kelas}</th>
+                  <th className="px-6 py-4">{formConfig.label_santri_absen}</th>
                   <th className="px-6 py-4">Skor</th>
                   <th className="px-6 py-4">Catatan</th>
                   <th className="px-6 py-4 text-center">Aksi</th>
@@ -845,33 +770,21 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
                 <p className="text-[11px] text-slate-500">Skala: {(selectedDetailLog.skor_persen / 33.3).toFixed(2)} / 3.0</p>
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SEKTOR / RUANG</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ATRIBUT UTAMA</p>
                 <h4 className="text-xs font-bold text-slate-800 break-words">{selectedDetailLog.mapel_kelas}</h4>
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SASARAN / TARGET</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TARGET / GURU</p>
                 <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.guru_target}</h4>
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">KETERANGAN</p>
                 <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.santri_absen || 'Nihil'}</h4>
               </div>
-
-              {/* Tampilkan data kolom kustom pada detail jika ada */}
-              {selectedDetailLog.custom_field_values && Object.entries(selectedDetailLog.custom_field_values).map(([cfId, val]: [string, any]) => {
-                const fieldMeta = customFieldsList.find((f: any) => f.id === cfId);
-                if (!fieldMeta) return null;
-                return (
-                  <div key={cfId} className="bg-blue-50/40 p-4 rounded-2xl border border-blue-100 space-y-1">
-                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">{fieldMeta.label_kolom}</p>
-                    <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{val || '-'}</h4>
-                  </div>
-                );
-              })}
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-500 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
-              <p>Petugas Pemantau (PJ): <span className="font-semibold text-slate-700">{selectedDetailLog.petugas_pj}</span></p>
+              <p>{formConfig.label_petugas}: <span className="font-semibold text-slate-700">{selectedDetailLog.petugas_pj}</span></p>
               <p>Waktu Input: <span className="font-semibold text-slate-700">{new Date(selectedDetailLog.waktu_input).toLocaleString('id-ID')}</span></p>
             </div>
 
@@ -951,14 +864,13 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
 
       {activeSubTab === 'customize' && (
         <div className="space-y-6">
-          {/* Pengaturan Kolom Bawaan */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
               <div>
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <Settings size={18} className="text-blue-600" /> PENGATURAN KOLOM INFORMASI PENGAWASAN
+                  <Settings size={18} className="text-blue-600" /> PENGATURAN KOLOM & EDIT LABEL INFORMASI
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Centang modul bawaan yang ingin ditampilkan pada form kegiatan ini</p>
+                <p className="text-xs text-slate-500 mt-0.5">Centang modul yang ingin ditampilkan, atau klik ikon pensil untuk mengubah judul label kolom.</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-bold">
                 <button type="button" onClick={() => handleSelectAllConfig(true)} className="text-blue-600 hover:underline">Centang Semua</button>
@@ -967,89 +879,78 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_petugas ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_petugas} onChange={e => handleToggleConfigField('show_petugas', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Petugas (PJ)
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_guru ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_guru} onChange={e => handleToggleConfigField('show_guru', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Sasaran / Target
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_mapel ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_mapel} onChange={e => handleToggleConfigField('show_mapel', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Bidang / Sektor
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_kelas ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_kelas} onChange={e => handleToggleConfigField('show_kelas', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Kategori / Ruang
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_jam ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_jam} onChange={e => handleToggleConfigField('show_jam', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Waktu / Sesi
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_santri_absen ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_santri_absen} onChange={e => handleToggleConfigField('show_santri_absen', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Keterangan Tambahan
-              </label>
-            </div>
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+              {[
+                { key: 'show_petugas', defaultLabel: 'Petugas (PJ)', labelKey: 'label_petugas' },
+                { key: 'show_guru', defaultLabel: 'Wali Kelas / Guru Target', labelKey: 'label_guru' },
+                { key: 'show_mapel', defaultLabel: 'Program / Kegiatan', labelKey: 'label_mapel' },
+                { key: 'show_kelas', defaultLabel: 'Kelas', labelKey: 'label_kelas' },
+                { key: 'show_jam', defaultLabel: 'Waktu / Sesi', labelKey: 'label_jam' },
+                { key: 'show_santri_absen', defaultLabel: 'Santri Absen / Kendala', labelKey: 'label_santri_absen' },
+              ].map((item) => {
+                const currentLabel = formConfig[item.labelKey] || item.defaultLabel;
+                const isChecked = formConfig[item.key];
 
-          {/* MANAJEMEN KOLOM KUSTOM DINAMIS (TAMBAH, EDIT, & HAPUS) */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <Layers size={18} className="text-blue-600" /> Kolom Input Kustom Tambahan
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Buat, ubah, atau hapus kolom input tambahan khusus untuk program kegiatan ini</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingCustomField(null);
-                  setCustomFieldInput({ label_kolom: '', tipe_input: 'text', opsi_pilihan: '', wajib_isi: false });
-                  setShowAddCustomModal(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
-              >
-                <Plus size={14} /> Tambah Kolom Baru
-              </button>
-            </div>
-
-            <div className="space-y-2 pt-1">
-              {customFieldsList.length === 0 ? (
-                <p className="text-xs text-slate-400 italic py-3 text-center">Belum ada kolom kustom yang ditambahkan untuk program ini.</p>
-              ) : (
-                customFieldsList.map((cf: any) => (
-                  <div key={cf.id} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-slate-800">{cf.label_kolom}</h4>
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md border border-blue-100 uppercase">{cf.tipe_input}</span>
-                        {cf.wajib_isi && <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-50 text-amber-600 rounded-md border border-amber-100">Wajib Diisi</span>}
-                      </div>
-                      {cf.tipe_input === 'select' && cf.opsi_pilihan && (
-                        <p className="text-xs text-slate-500 mt-0.5">Opsi: {cf.opsi_pilihan}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditCustomField(cf)}
-                        className="p-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors"
-                        title="Edit Kolom"
-                      >
-                        <Edit size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCustomField(cf.id)}
-                        className="p-1.5 bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 rounded-lg transition-colors"
-                        title="Hapus Kolom"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                return (
+                  <div key={item.key} className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${isChecked ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                    <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked} 
+                        onChange={e => handleToggleConfigField(item.key, e.target.checked)} 
+                        className="w-4 h-4 text-blue-600 rounded shrink-0" 
+                      />
+                      <span className="text-sm font-medium truncate">{currentLabel}</span>
+                    </label>
+                    
+                    <button 
+                      type="button"
+                      onClick={() => { setEditingColumn(item.key); setTempLabelInput(currentLabel); }}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors shrink-0 ml-2"
+                      title="Edit Judul Kolom"
+                    >
+                      <Edit size={14} />
+                    </button>
                   </div>
-                ))
-              )}
+                );
+              })}
             </div>
           </div>
+
+          {/* Modal Popup Edit Judul Kolom */}
+          {editingColumn && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-200">
+                <h3 className="text-base font-bold text-slate-800">Edit Judul / Label Kolom</h3>
+                <p className="text-xs text-slate-500">Masukkan nama label baru yang ingin ditampilkan pada form & tabel riwayat.</p>
+                
+                <input 
+                  type="text"
+                  value={tempLabelInput}
+                  onChange={e => setTempLabelInput(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 outline-none focus:border-blue-500"
+                  autoFocus
+                />
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingColumn(null)} 
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => handleSaveColumnLabel(editingColumn)} 
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                  >
+                    Simpan Label
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div>
@@ -1131,90 +1032,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
                 )}
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* Modal Tambah / Edit Kolom Kustom */}
-      {showAddCustomModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-6 relative animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-bold text-slate-900">
-                {editingCustomField ? 'Edit Kolom Kustom' : 'Tambah Kolom Kustom Baru'}
-              </h3>
-              <button onClick={() => setShowAddCustomModal(false)} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors">
-                <X size={16} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveCustomField} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Label / Nama Kolom:</label>
-                <input
-                  type="text"
-                  value={customFieldInput.label_kolom}
-                  onChange={e => setCustomFieldInput({ ...customFieldInput, label_kolom: e.target.value })}
-                  placeholder="Contoh: Jumlah Pelanggar"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tipe Input:</label>
-                <select
-                  value={customFieldInput.tipe_input}
-                  onChange={e => setCustomFieldInput({ ...customFieldInput, tipe_input: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
-                >
-                  <option value="text">Teks Singkat</option>
-                  <option value="number">Angka / Jumlah</option>
-                  <option value="select">Pilihan Dropdown</option>
-                </select>
-              </div>
-
-              {customFieldInput.tipe_input === 'select' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Opsi Pilihan (Pisahkan dengan koma):</label>
-                  <input
-                    type="text"
-                    value={customFieldInput.opsi_pilihan}
-                    onChange={e => setCustomFieldInput({ ...customFieldInput, opsi_pilihan: e.target.value })}
-                    placeholder="Contoh: Ringan, Sedang, Berat"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none"
-                    required
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="wajib_isi_chk"
-                  checked={customFieldInput.wajib_isi}
-                  onChange={e => setCustomFieldInput({ ...customFieldInput, wajib_isi: e.target.checked })}
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-                <label htmlFor="wajib_isi_chk" className="text-xs font-semibold text-slate-700 cursor-pointer">Kolom ini wajib diisi saat input</label>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddCustomModal(false)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
-                >
-                  {editingCustomField ? 'Simpan Perubahan' : 'Tambahkan'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
