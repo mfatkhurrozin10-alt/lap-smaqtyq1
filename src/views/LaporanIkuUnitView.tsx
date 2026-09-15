@@ -10,7 +10,15 @@ export default function LaporanIkuUnitView({}: any) {
   
   const currentYearMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentYearMonth);
-  const [ikuRekapList, setIkuRekapList] = useState<any[]>([]);
+  const [rekapRows, setRekapRows] = useState<any[]>([]);
+
+  // Helper Warna Realisasi
+  const getScoreTextColor = (scoreStr: string) => {
+    const score = parseFloat(scoreStr) || 0;
+    if (score > 66) return 'text-emerald-600';
+    if (score > 33) return 'text-amber-600';
+    return 'text-rose-600';
+  };
 
   const fetchDivisi = async () => {
     try {
@@ -33,7 +41,7 @@ export default function LaporanIkuUnitView({}: any) {
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
-      // 1. Ambil indikator IKU yang tersedia di divisi ini (melalui program kegiatan)
+      // Ambil program kegiatan & indikator IKU
       const { data: progList, error: progErr } = await supabase
         .from('program_kegiatan')
         .select(`
@@ -59,23 +67,12 @@ export default function LaporanIkuUnitView({}: any) {
       if (logErr) throw logErr;
       const allLogs = logs || [];
 
-      // Kelompokkan berdasarkan Indikator IKU (Unique IKU)
-      const ikuMap: { [key: string]: any } = {};
+      // Bentuk baris datar per kegiatan agar terpisah dengan jelas sesuai gambar referensi
+      let flatRows: any[] = [];
+      let counter = 1;
 
       (progList || []).forEach((prog: any) => {
         const iku = prog.indikator_iku;
-        const ikuId = iku?.id || 'umum';
-
-        if (!ikuMap[ikuId]) {
-          ikuMap[ikuId] = {
-            id: ikuId,
-            kode_iku: iku?.kode_iku || 'IKU-UNIT',
-            judul_iku: iku?.judul_iku || 'Kinerja Unit',
-            target_deskripsi: iku?.target_deskripsi || '100%',
-            kegiatanList: []
-          };
-        }
-
         const pLogs = allLogs.filter((l: any) => l.program_id === prog.id);
         const filteredLogs = pLogs.filter((l: any) => {
           if (!selectedMonth) return true;
@@ -85,14 +82,20 @@ export default function LaporanIkuUnitView({}: any) {
         const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
         const avgSkor = filteredLogs.length > 0 ? (totalSkor / filteredLogs.length).toFixed(1) : '0';
 
-        ikuMap[ikuId].kegiatanList.push({
-          ...prog,
-          logs: filteredLogs,
-          realisasi_persen: `${avgSkor}%`
+        flatRows.push({
+          no: counter++,
+          kode_iku: iku?.kode_iku || 'IKU-UNIT',
+          judul_iku: iku?.judul_iku || prog.nama_program,
+          target: iku?.target_deskripsi || prog.target_pencapaian || '100%',
+          realisasi: `${avgSkor}%`,
+          yayasan: iku?.target_deskripsi || prog.target_pencapaian || '100%',
+          kegiatan: prog.nama_program,
+          waktu: prog.timeframe || 'Harian',
+          logs: filteredLogs
         });
       });
 
-      setIkuRekapList(Object.values(ikuMap));
+      setRekapRows(flatRows);
     } catch (err) {
       console.error(err);
     } finally {
@@ -110,7 +113,7 @@ export default function LaporanIkuUnitView({}: any) {
     if (!ym) return '';
     const [y, m] = ym.split('-');
     const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-    return `${monthNames[parseInt(m) - 1] || m}-${y}`;
+    return `${monthNames[parseInt(m) - 1] || m}-${y}`.toUpperCase();
   };
 
   if (loading && divisiList.length === 0) {
@@ -170,7 +173,7 @@ export default function LaporanIkuUnitView({}: any) {
             <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               <tr>
                 <th className="px-5 py-4 w-12 text-center border-r border-slate-200">NO</th>
-                <th className="px-6 py-4 w-72 border-r border-slate-200">INDIKATOR (IKU)</th>
+                <th className="px-6 py-4 w-64 border-r border-slate-200">INDIKATOR (IKU)</th>
                 <th className="px-5 py-4 w-28 border-r border-slate-200">TARGET</th>
                 <th className="px-5 py-4 w-28 bg-blue-50/80 text-blue-900 border-r border-slate-200">REALISASI</th>
                 <th className="px-5 py-4 w-28 bg-emerald-50/80 text-emerald-900 border-r border-slate-200">YAYASAN</th>
@@ -181,89 +184,79 @@ export default function LaporanIkuUnitView({}: any) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {ikuRekapList.length === 0 ? (
+              {rekapRows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="text-center py-12 text-slate-400">
                     Belum ada data indikator IKU terdaftar pada unit <span className="font-bold text-slate-600">{currentDivisiObj?.nama_divisi}</span>.
                   </td>
                 </tr>
               ) : (
-                ikuRekapList.map((ikuItem: any, idx: number) => (
-                  <tr key={ikuItem.id} className="hover:bg-slate-50/80 transition-colors align-top">
+                rekapRows.map((row: any, idx: number) => (
+                  <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
                     
                     {/* NO */}
-                    <td className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100">{idx + 1}</td>
+                    <td className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100">{row.no}</td>
                     
                     {/* INDIKATOR (IKU) */}
                     <td className="px-6 py-5 border-r border-slate-100">
                       <div className="space-y-1.5">
                         <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100 inline-block">
-                          {ikuItem.kode_iku}
+                          {row.kode_iku}
                         </span>
                         <p className="text-xs font-bold text-slate-800 leading-snug">
-                          {ikuItem.judul_iku}
+                          {row.judul_iku}
                         </p>
                       </div>
                     </td>
 
                     {/* TARGET */}
                     <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100">
-                      {ikuItem.target_deskripsi}
+                      {row.target}
                     </td>
 
                     {/* REALISASI (Biru Muda) */}
-                    <td className="px-5 py-5 font-black text-sm bg-blue-50/40 text-blue-700 border-r border-slate-100 whitespace-nowrap">
-                      {ikuItem.kegiatanList[0]?.realisasi_persen || '0%'}
+                    <td className={`px-5 py-5 font-black text-sm bg-blue-50/40 border-r border-slate-100 whitespace-nowrap ${getScoreTextColor(row.realisasi)}`}>
+                      {row.realisasi}
                     </td>
 
                     {/* YAYASAN (Hijau Muda) */}
                     <td className="px-5 py-5 font-black text-sm bg-emerald-50/40 text-emerald-700 border-r border-slate-100 whitespace-nowrap">
-                      {ikuItem.target_deskripsi}
+                      {row.yayasan}
                     </td>
 
                     {/* KEGIATAN */}
-                    <td className="px-6 py-5 border-r border-slate-100 space-y-3">
-                      {ikuItem.kegiatanList.map((keg: any, kIdx: number) => (
-                        <div key={kIdx} className="font-bold text-slate-800 text-xs py-1">
-                          {keg.nama_program}
-                        </div>
-                      ))}
+                    <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
+                      {row.kegiatan}
                     </td>
 
                     {/* WAKTU */}
-                    <td className="px-5 py-5 border-r border-slate-100 space-y-3">
-                      {ikuItem.kegiatanList.map((keg: any, kIdx: number) => (
-                        <div key={kIdx} className="text-slate-600 text-xs font-medium py-1">
-                          {keg.timeframe || 'Harian'}
-                        </div>
-                      ))}
+                    <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium">
+                      {row.waktu}
                     </td>
 
                     {/* CATATAN */}
                     <td className="px-6 py-5 border-r border-slate-100">
-                      {ikuItem.kegiatanList.map((keg: any, kIdx: number) => (
-                        <div key={kIdx} className="space-y-2 pb-2">
-                          {keg.logs.length === 0 ? (
-                            <span className="text-slate-400 italic text-xs">(Belum ada catatan)</span>
-                          ) : (
-                            keg.logs.map((log: any, lIdx: number) => (
-                              <div key={lIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-start gap-2 shadow-2xs">
-                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0"></span>
-                                <div className="text-xs">
-                                  <span className="font-semibold text-slate-700 mr-1">[{log.mapel_kelas || log.guru_target || 'Pengawasan'}]:</span>
-                                  <span className="text-slate-600">{log.catatan_temuan || 'Sesuai standar'}</span>
-                                </div>
+                      <div className="space-y-2">
+                        {row.logs.length === 0 ? (
+                          <span className="text-slate-400 italic text-xs">(Belum ada catatan)</span>
+                        ) : (
+                          row.logs.map((log: any, lIdx: number) => (
+                            <div key={lIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-start gap-2 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0"></span>
+                              <div className="text-xs">
+                                <span className="font-semibold text-slate-700 mr-1">[{log.mapel_kelas || log.guru_target || 'Pengawasan'}]:</span>
+                                <span className="text-slate-600">{log.catatan_temuan || 'Sesuai standar'}</span>
                               </div>
-                            ))
-                          )}
-                        </div>
-                      ))}
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </td>
 
                     {/* AKSI */}
                     <td className="px-5 py-5 text-center">
                       <button 
-                        onClick={() => alert(`Edit / Evaluasi IKU: ${ikuItem.kode_iku}`)}
+                        onClick={() => alert(`Edit / Evaluasi Kegiatan: ${row.kegiatan}`)}
                         className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors shadow-2xs"
                         title="Edit / Catatan Evaluasi"
                       >
