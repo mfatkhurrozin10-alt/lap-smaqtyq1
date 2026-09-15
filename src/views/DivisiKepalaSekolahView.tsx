@@ -1,13 +1,13 @@
-// src/views/DivisiKurikulumView.tsx
+// src/views/DivisiKepalaSekolahView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function DivisiKurikulumView({ showNotification }: any) {
+export default function DivisiKepalaSekolahView({ showNotification }: any) {
   const [loading, setLoading] = useState(true);
   const [divisiData, setDivisiData] = useState<any>({
-    nama_divisi: 'Kurikulum',
-    nama_koordinator: 'Tim Kurikulum'
+    nama_divisi: 'Kepala Sekolah',
+    nama_koordinator: 'Tim Kepala Sekolah'
   });
   
   const [programList, setProgramList] = useState<any[]>([]);
@@ -21,7 +21,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     guru_target: '',
     mapel_kelas: '',
     kelas_dipilih: '',
-    jam_pembelajaran: '1-2',
+    jam_pembelajaran: '08:00 - Selesai',
     santri_absen: 'Nihil',
     catatan: ''
   });
@@ -46,11 +46,11 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     show_jam: true,
     show_santri_absen: true,
     label_petugas: 'Petugas (PJ)',
-    label_guru: 'Guru / Pengajar',
-    label_mapel: 'Mata Pelajaran',
-    label_kelas: 'Kelas',
-    label_jam: 'Jam Ke-',
-    label_santri_absen: 'Keterangan / Absen',
+    label_guru: 'Target / Guru Dinilai',
+    label_mapel: 'Bidang / Program',
+    label_kelas: 'Unit / Ruang Lingkup',
+    label_jam: 'Waktu Observasi',
+    label_santri_absen: 'Keterangan Khusus',
     type_petugas: 'input',
     type_guru: 'input',
     type_mapel: 'input',
@@ -92,7 +92,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     setLoading(true);
     try {
       const { data: divList } = await supabase.from('divisi').select('*');
-      const divisiObj = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('kurikulum')) || divList?.[0];
+      const divisiObj = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('kepala sekolah') || d.nama_divisi?.toLowerCase().includes('ks')) || divList?.[0];
 
       if (divisiObj) {
         setDivisiData(divisiObj);
@@ -173,12 +173,12 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       if (editingLogId) {
         const { error } = await supabase.from('divisi_log_pengawasan').update(payload).eq('id', editingLogId);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan kurikulum berhasil diperbarui!', 'success');
+        if (showNotification) showNotification('Laporan kepala sekolah berhasil diperbarui!', 'success');
         setEditingLogId(null);
       } else {
         const { error } = await supabase.from('divisi_log_pengawasan').insert([payload]);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan kurikulum baru berhasil disimpan!', 'success');
+        if (showNotification) showNotification('Laporan kepala sekolah baru berhasil disimpan!', 'success');
       }
 
       setCheckedItems({});
@@ -197,7 +197,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       guru_target: item.guru_target || '',
       mapel_kelas: item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '',
       kelas_dipilih: item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '',
-      jam_pembelajaran: item.jam_pembelajaran || '1-2',
+      jam_pembelajaran: item.jam_pembelajaran || '08:00 - Selesai',
       santri_absen: item.santri_absen || 'Nihil',
       catatan: item.catatan_temuan || ''
     });
@@ -362,7 +362,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   };
 
   if (loading) {
-    return <div className="p-12 text-center text-slate-500 font-medium">Memuat data Divisi Kurikulum...</div>;
+    return <div className="p-12 text-center text-slate-500 font-medium">Memuat data Divisi Kepala Sekolah...</div>;
   }
 
   const filteredProgramsByTime = programList.filter((p: any) => !p.timeframe || p.timeframe.toLowerCase() === timeframe.toLowerCase());
@@ -427,8 +427,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Divisi {divisiData?.nama_divisi || 'Kurikulum'}</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Koordinator: <span className="font-semibold text-slate-700">{divisiData?.nama_koordinator || 'Tim Kurikulum'}</span></p>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Divisi {divisiData?.nama_divisi || 'Kepala Sekolah'}</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Koordinator: <span className="font-semibold text-slate-700">{divisiData?.nama_koordinator || 'Tim Kepala Sekolah'}</span></p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -579,7 +579,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 {editingLogId && (
                   <button 
                     type="button" 
-                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
+                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '08:00 - Selesai', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
                     className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
                   >
                     Batal Edit
@@ -734,7 +734,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <Eye size={20} className="text-blue-600" /> Detail Hasil Pengawasan Kurikulum
+                  <Eye size={20} className="text-blue-600" /> Detail Hasil Pengawasan Kepala Sekolah
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">Program: <span className="font-semibold text-slate-700">{selectedProgramObj?.nama_program}</span> • ID #{selectedDetailLog.id.slice(-4)}</p>
               </div>
@@ -874,11 +874,11 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
               {[
                 { key: 'show_petugas', defaultLabel: 'Petugas (PJ)', labelKey: 'label_petugas', typeKey: 'type_petugas', optsKey: 'options_petugas' },
-                { key: 'show_guru', defaultLabel: 'Guru / Pengajar', labelKey: 'label_guru', typeKey: 'type_guru', optsKey: 'options_guru' },
-                { key: 'show_mapel', defaultLabel: 'Mata Pelajaran', labelKey: 'label_mapel', typeKey: 'type_mapel', optsKey: 'options_mapel' },
-                { key: 'show_kelas', defaultLabel: 'Kelas', labelKey: 'label_kelas', typeKey: 'type_kelas', optsKey: 'options_kelas' },
-                { key: 'show_jam', defaultLabel: 'Jam Ke-', labelKey: 'label_jam', typeKey: 'type_jam', optsKey: 'options_jam' },
-                { key: 'show_santri_absen', defaultLabel: 'Keterangan / Absen', labelKey: 'label_santri_absen', typeKey: 'type_santri_absen', optsKey: 'options_santri_absen' },
+                { key: 'show_guru', defaultLabel: 'Target / Guru Dinilai', labelKey: 'label_guru', typeKey: 'type_guru', optsKey: 'options_guru' },
+                { key: 'show_mapel', defaultLabel: 'Bidang / Program', labelKey: 'label_mapel', typeKey: 'type_mapel', optsKey: 'options_mapel' },
+                { key: 'show_kelas', defaultLabel: 'Unit / Ruang Lingkup', labelKey: 'label_kelas', typeKey: 'type_kelas', optsKey: 'options_kelas' },
+                { key: 'show_jam', defaultLabel: 'Waktu Observasi', labelKey: 'label_jam', typeKey: 'type_jam', optsKey: 'options_jam' },
+                { key: 'show_santri_absen', defaultLabel: 'Keterangan Khusus', labelKey: 'label_santri_absen', typeKey: 'type_santri_absen', optsKey: 'options_santri_absen' },
               ].map((item) => {
                 const currentLabel = formConfig[item.labelKey] || item.defaultLabel;
                 const isChecked = formConfig[item.key];

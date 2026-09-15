@@ -16,16 +16,12 @@ export default function DivisiHumasView({ showNotification }: any) {
   
   const [timeframe, setTimeframe] = useState('Harian');
 
-  const [guruList, setGuruList] = useState<any[]>([]);
-  const [kelasList, setKelasList] = useState<any[]>([]);
-  const [mapelList, setMapelList] = useState<any[]>([]);
-
   const [formInput, setFormInput] = useState({
     petugas_pj: '',
     guru_target: '',
     mapel_kelas: '',
     kelas_dipilih: '',
-    jam_pembelajaran: '1-2',
+    jam_pembelajaran: '08:00 - Selesai',
     santri_absen: 'Nihil',
     catatan: ''
   });
@@ -41,14 +37,38 @@ export default function DivisiHumasView({ showNotification }: any) {
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
   const itemsPerPage = 10;
 
+  // Konfigurasi Kolom, Label, Tipe Input ('dropdown' | 'input'), dan Opsi Pilihan Kustom
   const [formConfig, setFormConfig] = useState<any>({
     show_petugas: true,
     show_guru: true,
     show_mapel: true,
     show_kelas: true,
     show_jam: true,
-    show_santri_absen: true
+    show_santri_absen: true,
+    label_petugas: 'Petugas (PJ)',
+    label_guru: 'Mitra / Narasumber',
+    label_mapel: 'Kegiatan / Kerjasama',
+    label_kelas: 'Lokasi / Ruang',
+    label_jam: 'Waktu / Sesi',
+    label_santri_absen: 'Keterangan Tambahan',
+    type_petugas: 'input',
+    type_guru: 'input',
+    type_mapel: 'input',
+    type_kelas: 'input',
+    type_jam: 'input',
+    type_santri_absen: 'input',
+    options_petugas: [],
+    options_guru: [],
+    options_mapel: [],
+    options_kelas: [],
+    options_jam: [],
+    options_santri_absen: []
   });
+
+  const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
+  const [tempLabel, setTempLabel] = useState('');
+  const [tempType, setTempType] = useState('input');
+  const [tempOptionsText, setTempOptionsText] = useState('');
 
   const [newKategoriNama, setNewKategoriNama] = useState('');
   const [newKategoriTipe, setNewKategoriTipe] = useState('Negatif (Dicentang jika bermasalah)');
@@ -84,20 +104,6 @@ export default function DivisiHumasView({ showNotification }: any) {
           setSelectedProgramId(targetProg.id);
         }
       }
-
-      const { data: dbGuru } = await supabase.from('guru').select('id, nama');
-      if (dbGuru && dbGuru.length > 0) setGuruList(dbGuru);
-
-      const { data: dbMapel } = await supabase.from('mapel').select('id, nama_mapel, kode');
-      if (dbMapel && dbMapel.length > 0) setMapelList(dbMapel);
-
-      const { data: dbKelas } = await supabase.from('guru_mapel').select('kelas');
-      if (dbKelas && dbKelas.length > 0) {
-        const uniqueKelas = Array.from(new Set(dbKelas.map((k: any) => k.kelas))).filter(Boolean);
-        setKelasList(uniqueKelas);
-      } else {
-        setKelasList(['Kelas 7-A', 'Kelas 7-B', 'Kelas 8-A', 'Kelas 8-B', 'Kelas 9-A', 'Kelas 9-B']);
-      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -114,7 +120,7 @@ export default function DivisiHumasView({ showNotification }: any) {
     try {
       const { data: cfgList } = await supabase.from('divisi_form_config').select('*').eq('program_id', selectedProgramId);
       if (cfgList && cfgList.length > 0) {
-        setFormConfig(cfgList[0]);
+        setFormConfig((prev: any) => ({ ...prev, ...cfgList[0] }));
       }
 
       const { data: kat } = await supabase.from('divisi_kategori_indikator').select('*, divisi_butir_ceklis(*)').eq('program_id', selectedProgramId).order('urutan');
@@ -191,7 +197,7 @@ export default function DivisiHumasView({ showNotification }: any) {
       guru_target: item.guru_target || '',
       mapel_kelas: item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '',
       kelas_dipilih: item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '',
-      jam_pembelajaran: item.jam_pembelajaran || '1-2',
+      jam_pembelajaran: item.jam_pembelajaran || '08:00 - Selesai',
       santri_absen: item.santri_absen || 'Nihil',
       catatan: item.catatan_temuan || ''
     });
@@ -284,8 +290,55 @@ export default function DivisiHumasView({ showNotification }: any) {
     }
   };
 
+  const handleSaveColumnCustomize = async (columnKey: string) => {
+    const mapConfig: any = {
+      show_petugas: { label: 'label_petugas', type: 'type_petugas', opts: 'options_petugas' },
+      show_guru: { label: 'label_guru', type: 'type_guru', opts: 'options_guru' },
+      show_mapel: { label: 'label_mapel', type: 'type_mapel', opts: 'options_mapel' },
+      show_kelas: { label: 'label_kelas', type: 'type_kelas', opts: 'options_kelas' },
+      show_jam: { label: 'label_jam', type: 'type_jam', opts: 'options_jam' },
+      show_santri_absen: { label: 'label_santri_absen', type: 'type_santri_absen', opts: 'options_santri_absen' },
+    };
+
+    const targetMap = mapConfig[columnKey];
+    if (!targetMap || !selectedProgramId) return;
+
+    const optionsArray = tempOptionsText.split(',').map(s => s.trim()).filter(Boolean);
+
+    const updatedConfig = { 
+      ...formConfig, 
+      [targetMap.label]: tempLabel, 
+      [targetMap.type]: tempType,
+      [targetMap.opts]: optionsArray
+    };
+    setFormConfig(updatedConfig);
+
+    try {
+      const { data: existing } = await supabase.from('divisi_form_config').select('id').eq('program_id', selectedProgramId);
+      if (existing && existing.length > 0) {
+        await supabase.from('divisi_form_config').update({ 
+          [targetMap.label]: tempLabel, 
+          [targetMap.type]: tempType,
+          [targetMap.opts]: optionsArray
+        }).eq('program_id', selectedProgramId);
+      } else {
+        await supabase.from('divisi_form_config').insert([{ 
+          program_id: selectedProgramId, 
+          [targetMap.label]: tempLabel, 
+          [targetMap.type]: tempType,
+          [targetMap.opts]: optionsArray
+        }]);
+      }
+      if (showNotification) showNotification('Pengaturan kolom berhasil diperbarui!', 'success');
+      setEditingColumnKey(null);
+    } catch (err: any) {
+      if (showNotification) showNotification(err.message, 'error');
+    }
+  };
+
   const handleSelectAllConfig = async (status: boolean) => {
     const updated = {
+      ...formConfig,
       show_petugas: status,
       show_guru: status,
       show_mapel: status,
@@ -326,6 +379,49 @@ export default function DivisiHumasView({ showNotification }: any) {
   const currentRiwayatPageData = filteredRiwayatByMonth.slice(startIndex, startIndex + itemsPerPage);
 
   const averageRealisasi = riwayatList.length > 0 ? (riwayatList.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen), 0) / riwayatList.length) : 0;
+
+  const renderDynamicInput = (
+    showKey: string, 
+    labelKey: string, 
+    typeKey: string, 
+    optsKey: string, 
+    valueState: string, 
+    onChangeVal: (val: string) => void
+  ) => {
+    if (!formConfig[showKey]) return null;
+
+    const label = formConfig[labelKey];
+    const inputType = formConfig[typeKey] || 'input';
+    const optionsList = formConfig[optsKey] || [];
+
+    return (
+      <div>
+        <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}:</label>
+        {inputType === 'dropdown' && optionsList.length > 0 ? (
+          <select 
+            value={valueState} 
+            onChange={e => onChangeVal(e.target.value)} 
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer" 
+            required
+          >
+            <option value="">-- Pilih {label} --</option>
+            {optionsList.map((opt: string, idx: number) => (
+              <option key={idx} value={opt}>{opt}</option>
+            ))}
+          </select>
+        ) : (
+          <input 
+            type="text" 
+            value={valueState} 
+            onChange={e => onChangeVal(e.target.value)} 
+            placeholder={`Masukkan ${label}`} 
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800 placeholder:text-slate-400" 
+            required 
+          />
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
@@ -417,84 +513,12 @@ export default function DivisiHumasView({ showNotification }: any) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {formConfig.show_petugas && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadz / Petugas Pemantau (PJ):</label>
-                  <input 
-                    type="text" 
-                    value={formInput.petugas_pj} 
-                    onChange={e => setFormInput({...formInput, petugas_pj: e.target.value})} 
-                    placeholder="Masukan Nama" 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800 placeholder:text-slate-400" 
-                    required 
-                  />
-                </div>
-              )}
-
-              {formConfig.show_guru && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadz / Target Terkait:</label>
-                  <select 
-                    value={formInput.guru_target} 
-                    onChange={e => setFormInput({...formInput, guru_target: e.target.value})} 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer" 
-                    required
-                  >
-                    <option value="">-- Pilih Target / Guru --</option>
-                    {guruList.map((g: any) => (
-                      <option key={g.id} value={g.nama}>{g.nama}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {formConfig.show_mapel && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Bidang / Sektor:</label>
-                  <select 
-                    value={formInput.mapel_kelas} 
-                    onChange={e => setFormInput({...formInput, mapel_kelas: e.target.value})} 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
-                    required
-                  >
-                    <option value="">-- Pilih Bidang / Sektor --</option>
-                    {mapelList.map((m: any) => (
-                      <option key={m.id} value={m.nama_mapel}>{m.nama_mapel} ({m.kode})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {formConfig.show_kelas && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kategori / Ruang:</label>
-                  <select 
-                    value={formInput.kelas_dipilih} 
-                    onChange={e => setFormInput({...formInput, kelas_dipilih: e.target.value})} 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
-                    required
-                  >
-                    <option value="">-- Pilih Kategori / Ruang --</option>
-                    {kelasList.map((kls: string, idx: number) => (
-                      <option key={idx} value={kls}>{kls}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {formConfig.show_jam && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Waktu / Sesi:</label>
-                  <input type="text" value={formInput.jam_pembelajaran} onChange={e => setFormInput({...formInput, jam_pembelajaran: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800" />
-                </div>
-              )}
-
-              {formConfig.show_santri_absen && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Keterangan Tambahan:</label>
-                  <input type="text" value={formInput.santri_absen} onChange={e => setFormInput({...formInput, santri_absen: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800" />
-                </div>
-              )}
+              {renderDynamicInput('show_petugas', 'label_petugas', 'type_petugas', 'options_petugas', formInput.petugas_pj, (val) => setFormInput({...formInput, petugas_pj: val}))}
+              {renderDynamicInput('show_guru', 'label_guru', 'type_guru', 'options_guru', formInput.guru_target, (val) => setFormInput({...formInput, guru_target: val}))}
+              {renderDynamicInput('show_mapel', 'label_mapel', 'type_mapel', 'options_mapel', formInput.mapel_kelas, (val) => setFormInput({...formInput, mapel_kelas: val}))}
+              {renderDynamicInput('show_kelas', 'label_kelas', 'type_kelas', 'options_kelas', formInput.kelas_dipilih, (val) => setFormInput({...formInput, kelas_dipilih: val}))}
+              {renderDynamicInput('show_jam', 'label_jam', 'type_jam', 'options_jam', formInput.jam_pembelajaran, (val) => setFormInput({...formInput, jam_pembelajaran: val}))}
+              {renderDynamicInput('show_santri_absen', 'label_santri_absen', 'type_santri_absen', 'options_santri_absen', formInput.santri_absen, (val) => setFormInput({...formInput, santri_absen: val}))}
             </div>
           </div>
 
@@ -555,7 +579,7 @@ export default function DivisiHumasView({ showNotification }: any) {
                 {editingLogId && (
                   <button 
                     type="button" 
-                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
+                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '08:00 - Selesai', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
                     className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
                   >
                     Batal Edit
@@ -607,10 +631,12 @@ export default function DivisiHumasView({ showNotification }: any) {
                 <tr>
                   <th className="px-6 py-4">No</th>
                   <th className="px-6 py-4">Waktu</th>
-                  <th className="px-6 py-4">Petugas (PJ)</th>
-                  <th className="px-6 py-4">Sasaran / Target</th>
-                  <th className="px-6 py-4">Sektor & Ruang</th>
-                  <th className="px-6 py-4">Keterangan</th>
+                  {formConfig.show_petugas && <th className="px-6 py-4">{formConfig.label_petugas}</th>}
+                  {formConfig.show_guru && <th className="px-6 py-4">{formConfig.label_guru}</th>}
+                  {formConfig.show_mapel && <th className="px-6 py-4">{formConfig.label_mapel}</th>}
+                  {formConfig.show_kelas && <th className="px-6 py-4">{formConfig.label_kelas}</th>}
+                  {formConfig.show_jam && <th className="px-6 py-4">{formConfig.label_jam}</th>}
+                  {formConfig.show_santri_absen && <th className="px-6 py-4">{formConfig.label_santri_absen}</th>}
                   <th className="px-6 py-4">Skor</th>
                   <th className="px-6 py-4">Catatan</th>
                   <th className="px-6 py-4 text-center">Aksi</th>
@@ -619,7 +645,7 @@ export default function DivisiHumasView({ showNotification }: any) {
               <tbody className="divide-y divide-slate-100">
                 {currentRiwayatPageData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12 text-slate-400">Belum ada log riwayat pengawasan pada filter ini.</td>
+                    <td colSpan={12} className="text-center py-12 text-slate-400">Belum ada log riwayat pengawasan pada filter ini.</td>
                   </tr>
                 ) : (
                   currentRiwayatPageData.map((item: any, idx: number) => {
@@ -630,10 +656,12 @@ export default function DivisiHumasView({ showNotification }: any) {
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 font-mono text-slate-400">{absoluteIndex}</td>
                         <td className="px-6 py-4 text-slate-600 text-xs">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj}</td>
-                        <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.mapel_kelas}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>
+                        {formConfig.show_petugas && <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj || '-'}</td>}
+                        {formConfig.show_guru && <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target || '-'}</td>}
+                        {formConfig.show_mapel && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '-'}</td>}
+                        {formConfig.show_kelas && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '-'}</td>}
+                        {formConfig.show_jam && <td className="px-6 py-4 text-slate-600">{item.jam_pembelajaran || '-'}</td>}
+                        {formConfig.show_santri_absen && <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>}
                         <td className={`px-6 py-4 font-black ${getScoreTextColor(skorVal)}`}>
                           {skorVal}%
                         </td>
@@ -726,22 +754,29 @@ export default function DivisiHumasView({ showNotification }: any) {
                 </h4>
                 <p className="text-[11px] text-slate-500">Skala: {(selectedDetailLog.skor_persen / 33.3).toFixed(2)} / 3.0</p>
               </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SEKTOR / RUANG</p>
-                <h4 className="text-xs font-bold text-slate-800 break-words">{selectedDetailLog.mapel_kelas}</h4>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SASARAN / TARGET</p>
-                <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.guru_target}</h4>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">KETERANGAN</p>
-                <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.santri_absen || 'Nihil'}</h4>
-              </div>
+              {formConfig.show_mapel && (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{formConfig.label_mapel.toUpperCase()}</p>
+                  <h4 className="text-xs font-bold text-slate-800 break-words">{selectedDetailLog.mapel_kelas ? selectedDetailLog.mapel_kelas.split(' (')[0] : '-'}</h4>
+                </div>
+              )}
+              {formConfig.show_kelas && (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{formConfig.label_kelas.toUpperCase()}</p>
+                  <h4 className="text-xs font-bold text-slate-800 break-words">{selectedDetailLog.mapel_kelas && selectedDetailLog.mapel_kelas.includes('(') ? selectedDetailLog.mapel_kelas.split('(')[1].replace(')', '') : '-'}</h4>
+                </div>
+              )}
+              {formConfig.show_guru && (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{formConfig.label_guru.toUpperCase()}</p>
+                  <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.guru_target || '-'}</h4>
+                </div>
+              )}
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-500 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
-              <p>Petugas Pemantau (PJ): <span className="font-semibold text-slate-700">{selectedDetailLog.petugas_pj}</span></p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-500 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100 gap-2">
+              {formConfig.show_petugas && <p>{formConfig.label_petugas}: <span className="font-semibold text-slate-700">{selectedDetailLog.petugas_pj}</span></p>}
+              {formConfig.show_jam && <p>{formConfig.label_jam}: <span className="font-semibold text-slate-700">{selectedDetailLog.jam_pembelajaran}</span></p>}
               <p>Waktu Input: <span className="font-semibold text-slate-700">{new Date(selectedDetailLog.waktu_input).toLocaleString('id-ID')}</span></p>
             </div>
 
@@ -825,9 +860,9 @@ export default function DivisiHumasView({ showNotification }: any) {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
               <div>
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <Settings size={18} className="text-blue-600" /> PENGATURAN KOLOM INFORMASI PENGAWASAN
+                  <Settings size={18} className="text-blue-600" /> PENGATURAN KOLOM, LABEL, & TIPE INPUTAN
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Centang modul yang ingin ditampilkan pada form kegiatan ini</p>
+                <p className="text-xs text-slate-500 mt-0.5">Centang modul yang ingin ditampilkan, atau klik ikon pensil untuk mengubah judul, tipe inputan, serta opsi pilihannya.</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-bold">
                 <button type="button" onClick={() => handleSelectAllConfig(true)} className="text-blue-600 hover:underline">Centang Semua</button>
@@ -836,27 +871,115 @@ export default function DivisiHumasView({ showNotification }: any) {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_petugas ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_petugas} onChange={e => handleToggleConfigField('show_petugas', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Petugas (PJ)
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_guru ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_guru} onChange={e => handleToggleConfigField('show_guru', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Sasaran / Target
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_mapel ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_mapel} onChange={e => handleToggleConfigField('show_mapel', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Bidang / Sektor
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_kelas ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_kelas} onChange={e => handleToggleConfigField('show_kelas', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Kategori / Ruang
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_jam ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_jam} onChange={e => handleToggleConfigField('show_jam', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Waktu / Sesi
-              </label>
-              <label className={`flex items-center gap-2.5 p-3.5 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_santri_absen ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                <input type="checkbox" checked={formConfig.show_santri_absen} onChange={e => handleToggleConfigField('show_santri_absen', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Keterangan Tambahan
-              </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+              {[
+                { key: 'show_petugas', defaultLabel: 'Petugas (PJ)', labelKey: 'label_petugas', typeKey: 'type_petugas', optsKey: 'options_petugas' },
+                { key: 'show_guru', defaultLabel: 'Mitra / Narasumber', labelKey: 'label_guru', typeKey: 'type_guru', optsKey: 'options_guru' },
+                { key: 'show_mapel', defaultLabel: 'Kegiatan / Kerjasama', labelKey: 'label_mapel', typeKey: 'type_mapel', optsKey: 'options_mapel' },
+                { key: 'show_kelas', defaultLabel: 'Lokasi / Ruang', labelKey: 'label_kelas', typeKey: 'type_kelas', optsKey: 'options_kelas' },
+                { key: 'show_jam', defaultLabel: 'Waktu / Sesi', labelKey: 'label_jam', typeKey: 'type_jam', optsKey: 'options_jam' },
+                { key: 'show_santri_absen', defaultLabel: 'Keterangan Tambahan', labelKey: 'label_santri_absen', typeKey: 'type_santri_absen', optsKey: 'options_santri_absen' },
+              ].map((item) => {
+                const currentLabel = formConfig[item.labelKey] || item.defaultLabel;
+                const isChecked = formConfig[item.key];
+                const inputType = formConfig[item.typeKey] || 'input';
+
+                return (
+                  <div key={item.key} className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${isChecked ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                    <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked} 
+                        onChange={e => handleToggleConfigField(item.key, e.target.checked)} 
+                        className="w-4 h-4 text-blue-600 rounded shrink-0" 
+                      />
+                      <div className="truncate">
+                        <span className="text-sm font-medium block truncate">{currentLabel}</span>
+                        <span className="text-[10px] text-slate-400 capitalize">Tipe: {inputType === 'dropdown' ? 'Dropdown Pilihan' : 'Teks Singkat'}</span>
+                      </div>
+                    </label>
+                    
+                    <button 
+                      type="button"
+                      onClick={() => { 
+                        setEditingColumnKey(item.key); 
+                        setTempLabel(currentLabel); 
+                        setTempType(inputType);
+                        setTempOptionsText((formConfig[item.optsKey] || []).join(', '));
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors shrink-0 ml-2"
+                      title="Edit Kolom"
+                    >
+                      <Edit size={14} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
+
+          {editingColumnKey && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-200">
+                <h3 className="text-base font-bold text-slate-800">Edit Konfigurasi Kolom Form</h3>
+                <p className="text-xs text-slate-500">Sesuaikan nama label, jenis inputan (Dropdown / Teks Singkat), serta daftar opsi pilihannya.</p>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Judul / Label Kolom:</label>
+                    <input 
+                      type="text"
+                      value={tempLabel}
+                      onChange={e => setTempLabel(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Jenis Inputan:</label>
+                    <select 
+                      value={tempType} 
+                      onChange={e => setTempType(e.target.value)} 
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="dropdown">Dropdown (Pilihan Menu)</option>
+                      <option value="input">Teks Singkat (Input Bebas)</option>
+                    </select>
+                  </div>
+
+                  {tempType === 'dropdown' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Opsi Dropdown (Pisahkan dengan koma):</label>
+                      <textarea 
+                        value={tempOptionsText}
+                        onChange={e => setTempOptionsText(e.target.value)}
+                        placeholder="Contoh: Opsi 1, Opsi 2, Opsi 3"
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none h-20 resize-none focus:border-blue-500"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">Ketik pilihan opsi dipisahkan tanda koma (`, `).</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingColumnKey(null)} 
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => handleSaveColumnCustomize(editingColumnKey)} 
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                  >
+                    Simpan Perubahan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div>

@@ -13,16 +13,15 @@ import {
   Globe,
   Archive,
   Award,
+  ShieldCheck, // <- Ditambahkan untuk ikon Kepala Sekolah
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
 
 export default function DashboardLayout({ activeTab, setActiveTab, children }: any) {
-  // State untuk melacak apakah mouse sedang di atas sidebar atau sidebar dikunci terbuka
   const [isHovered, setIsHovered] = useState(false);
   const [isLockedOpen, setIsLockedOpen] = useState(false);
 
-  // Sidebar aktif melebar jika sedang di-hover ATAU sedang dikunci
   const isExpanded = isHovered || isLockedOpen;
 
   const MenuItem = ({ id, icon, label }: any) => {
@@ -68,14 +67,11 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
   return (
     <div className="flex h-screen bg-[#f3f4f6] font-sans overflow-hidden">
       
-      {/* SIDEBAR DENGAN EFEK HOVER MELEBAR & MENYEMPIT OTOMATIS */}
       <aside 
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className={`${isExpanded ? 'w-72' : 'w-20'} bg-[#1e1e2f] flex flex-col h-full border-r border-slate-800 shrink-0 transition-all duration-300 ease-in-out z-30 shadow-xl`}
       >
-        
-        {/* Logo & Header Sidebar */}
         <div className="h-20 flex items-center px-4 border-b border-slate-800 justify-between shrink-0 overflow-hidden">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg shrink-0">
@@ -87,7 +83,6 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
             </div>
           </div>
 
-          {/* Tombol Kunci Buka/Tutup Sidebar */}
           <button 
             onClick={() => setIsLockedOpen(!isLockedOpen)}
             className={`p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all shrink-0 ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
@@ -97,7 +92,6 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
           </button>
         </div>
 
-        {/* Menu Navigasi Utama */}
         <div className="flex-1 overflow-y-auto py-6 px-3 custom-scrollbar overflow-x-hidden">
           
           <MenuItem id="dashboard-pantauan" icon={<LayoutDashboard size={20} />} label="Dashboard Pantauan" />
@@ -110,11 +104,12 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
           <MenuItem id="poin-santri" icon={<Star size={20} />} label="Poin Santri" />
           <MenuItem id="kelola-divisi" icon={<Settings size={20} />} label="Kelola Divisi, IKU & Program" />
 
-          {/* Sub Menu Divisi Kerja (IKU) */}
+          {/* Sub Menu Divisi Kerja (IKU) - Kepala Sekolah Ditempatkan Di Atas Kurikulum */}
           <div className="mt-8 text-left">
             <p className={`text-[10px] font-bold text-slate-500 mb-3 px-3 uppercase tracking-wider transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
               DIVISI KERJA (IKU)
             </p>
+            <SubMenuItem id="divisi-kepala-sekolah" icon={<ShieldCheck size={18} />} label="Kepala Sekolah" />
             <SubMenuItem id="divisi-kurikulum" icon={<BookOpen size={18} />} label="Kurikulum" />
             <SubMenuItem id="divisi-kesiswaan" icon={<Users size={18} />} label="Kesiswaan" />
             <SubMenuItem id="divisi-humas" icon={<Globe size={18} />} label="Humas" />
@@ -124,7 +119,6 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
           </div>
         </div>
 
-        {/* Profil Admin Bawah */}
         <div className="p-3 border-t border-slate-800 bg-[#161623] shrink-0 text-left overflow-hidden">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-amber-500 text-amber-950 font-black text-sm flex items-center justify-center shadow-md shrink-0">
@@ -138,21 +132,16 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50">
-        
-        {/* Topbar Simulasi Browser */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-end px-8 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-4">
              <span className="text-sm font-semibold text-slate-600">{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
         </header>
 
-        {/* Area Konten Utama */}
         <div className="flex-1 overflow-x-hidden overflow-y-auto p-6 md:p-8">
           {children}
         </div>
-
       </main>
     </div>
   );

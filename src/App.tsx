@@ -12,6 +12,7 @@ import KelolaDivisiView from './views/KelolaDivisiView';
 import LaporanIkuUnitView from './views/LaporanIkuUnitView';
 
 // Mengimpor Masing-Masing View Divisi Kerja (IKU)
+import DivisiKepalaSekolahView from './views/DivisiKepalaSekolahView'; // <- Ditambahkan
 import DivisiKurikulumView from './views/DivisiKurikulumView';
 import DivisiKesiswaanView from './views/DivisiKesiswaanView';
 import DivisiHumasView from './views/DivisiHumasView';
@@ -20,7 +21,6 @@ import DivisiBahasaView from './views/DivisiBahasaView';
 import DivisiTataUsahaView from './views/DivisiTataUsahaView';
 
 export default function App() {
-  // Diubah ke 'dashboard-pantauan' agar menjadi halaman utama saat pertama kali dibuka/direload
   const [activeTab, setActiveTab] = useState('dashboard-pantauan');
   const [notification, setNotification] = useState({ message: '', type: '' });
 
@@ -65,7 +65,10 @@ export default function App() {
       case 'kelola-divisi':
         return <KelolaDivisiView showNotification={showNotification} />;
 
-      // 6 Divisi Kerja (IKU) Terpisah Per File
+      // Divisi Kerja (IKU) Termasuk Kepala Sekolah di atas Kurikulum
+      case 'divisi-kepala-sekolah':
+        return <DivisiKepalaSekolahView showNotification={showNotification} />;
+
       case 'divisi-kurikulum':
         return <DivisiKurikulumView showNotification={showNotification} />;
 
