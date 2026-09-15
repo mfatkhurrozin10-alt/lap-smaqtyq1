@@ -16,10 +16,10 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProgram, setActiveProgram] = useState<any>(null);
   const [modalCatatanText, setModalCatatanText] = useState('');
-  const [savedNotes, setSavedNotes] = useState<{ [key: string]: string }>({});
 
   // Helper Warna Realisasi
   const getScoreTextColor = (scoreStr: string) => {
+    if (scoreStr === '-') return 'text-slate-400';
     const score = parseFloat(scoreStr) || 0;
     if (score > 66) return 'text-emerald-600';
     if (score > 33) return 'text-amber-600';
@@ -66,7 +66,7 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const allLogs = logs || [];
 
-      // 4. Ambil data nilai siswa (untuk sumber realisasi khusus ulangan harian jika ada tabel 'nilai')
+      // 4. Ambil data nilai terpisah (Ulangan Harian, ASTS, dll.) jika ada tabel 'nilai' atau 'penilaian'
       const { data: nilaiList } = await supabase.from('nilai').select('*');
       const allNilai = nilaiList || [];
 
@@ -83,24 +83,30 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
           return l.waktu_input && l.waktu_input.startsWith(selectedMonth);
         });
 
-        // SUMBER REALISASI DINAMIS BERDASARKAN JENIS KEGIATAN
-        let calculatedRealisasi = '0.0%';
+        // SUMBER REALISASI DINAMIS TERPISAH
+        let calculatedRealisasi = '-';
         const progNameLower = prog.nama_program?.toLowerCase() || '';
 
-        if (progNameLower.includes('nilai') || progNameLower.includes('ulangan')) {
-          // Contoh: Sumber dari rata-rata tabel nilai siswa di bulan tersebut
-          const monthNilai = allNilai.filter((n: any) => n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth));
-          if (monthNilai.length > 0) {
-            const sumNilai = monthNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
-            calculatedRealisasi = `${(sumNilai / monthNilai.length).toFixed(1)}%`;
-          } else {
-            calculatedRealisasi = '85.0%'; // Contoh default jika data nilai belum ada
+        if (progNameLower.includes('asts') || progNameLower.includes('pts')) {
+          // Khusus nilai ASTS / PTS
+          const astsNilai = allNilai.filter((n: any) => (n.kategori === 'ASTS' || n. jenis === 'ASTS') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
+          if (astsNilai.length > 0) {
+            const sum = astsNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
+            calculatedRealisasi = `${(sum / astsNilai.length).toFixed(1)}%`;
+          }
+        } else if (progNameLower.includes('ulangan harian') || progNameLower.includes('uh')) {
+          // Khusus Ulangan Harian
+          const uhNilai = allNilai.filter((n: any) => (n.kategori === 'UH' || n.jenis === 'UH') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
+          if (uhNilai.length > 0) {
+            const sum = uhNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
+            calculatedRealisasi = `${(sum / uhNilai.length).toFixed(1)}%`;
           }
         } else {
-          // Sumber standar dari rata-rata log pengawasan
-          const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
-          const avgSkor = filteredLogs.length > 0 ? (totalSkor / filteredLogs.length).toFixed(1) : '0.0';
-          calculatedRealisasi = `${avgSkor}%`;
+          // Standar dari log pengawasan
+          if (filteredLogs.length > 0) {
+            const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
+            calculatedRealisasi = `${(totalSkor / filteredLogs.length).toFixed(1)}%`;
+          }
         }
 
         rawRows.push({
@@ -113,7 +119,8 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
           yayasan: '',
           kegiatan: prog.nama_program || '-',
           waktu: prog.timeframe || '-',
-          logs: filteredLogs
+          logs: filteredLogs,
+          catatan_evaluasi: prog.catatan_evaluasi || '' // Mengambil catatan langsung dari database program kegiatan
         });
       });
 
@@ -160,8 +167,10 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
   // Fungsi Membuka Modal Pop-up Catatan Evaluasi
   const handleOpenModal = (prog: any) => {
     setActiveProgram(prog);
-    const existingNote = savedNotes[prog.id] || (prog.logs.length > 0 ? prog.logs.map((l: any) => `• [${l.mapel_kelas || l.guru_target || 'Pengawasan'}]: ${l.catatan_temuan}`).join('\n') : '');
-    setModalCatatanText(existingNote);
+    const defaultLogText = prog.logs.length > 0 
+      ? prog.logs.map((l: any) => `• [${l.mapel_kelas || l.guru_target || 'Pengawasan'}]: ${l.catatan_temuan || 'Sesuai standar'}`).join('\n') 
+      : '';
+    setModalCatatanText(prog.catatan_evaluasi || defaultLogText);
     setIsModalOpen(true);
   };
 
@@ -175,15 +184,24 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
     if (showNotification) showNotification('Berhasil menarik catatan dari log pengawasan!', 'success');
   };
 
-  // Simpan Catatan dari Modal
-  const handleSaveModalNote = () => {
+  // Simpan Catatan secara permanen ke Database Supabase
+  const handleSaveModalNote = async () => {
     if (!activeProgram) return;
-    setSavedNotes(prev => ({
-      ...prev,
-      [activeProgram.id]: modalCatatanText
-    }));
-    setIsModalOpen(false);
-    if (showNotification) showNotification('Catatan evaluasi berhasil disimpan!', 'success');
+    try {
+      const { error } = await supabase
+        .from('program_kegiatan')
+        .update({ catatan_evaluasi: modalCatatanText })
+        .eq('id', activeProgram.id);
+
+      if (error) throw error;
+
+      if (showNotification) showNotification('Catatan evaluasi berhasil disimpan ke database!', 'success');
+      setIsModalOpen(false);
+      fetchRekapData(); // Refresh data agar langsung tampil di tabel
+    } catch (err) {
+      console.error(err);
+      if (showNotification) showNotification('Gagal menyimpan catatan evaluasi.', 'error');
+    }
   };
 
   const currentDivisiObj = divisiList.find((d: any) => d.id === selectedDivisiId);
@@ -272,7 +290,6 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
               ) : (
                 rekapRows.map((row: any, idx: number) => {
                   const showMergedCell = row.rowSpan !== 0;
-                  const currentNote = savedNotes[row.id];
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
@@ -318,28 +335,16 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
 
                       {/* CATATAN */}
                       <td className="px-6 py-5 border-r border-slate-100">
-                        {currentNote ? (
+                        {row.catatan_evaluasi ? (
                           <div className="text-xs text-slate-700 whitespace-pre-line bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                            {currentNote}
+                            {row.catatan_evaluasi}
                           </div>
-                        ) : row.logs.length === 0 ? (
-                          <span className="text-slate-400 italic text-xs">(Belum ada catatan)</span>
                         ) : (
-                          <div className="space-y-2">
-                            {row.logs.map((log: any, lIdx: number) => (
-                              <div key={lIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-start gap-2 shadow-2xs">
-                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0"></span>
-                                <div className="text-xs">
-                                  <span className="font-semibold text-slate-700 mr-1">[{log.mapel_kelas || log.guru_target || 'Pengawasan'}]:</span>
-                                  <span className="text-slate-600">{log.catatan_temuan || 'Sesuai standar'}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                          <span className="text-slate-400 italic text-xs">(Belum ada catatan)</span>
                         )}
                       </td>
 
-                      {/* AKSI (Membuka Pop-up Edit Catatan) */}
+                      {/* AKSI */}
                       <td className="px-5 py-5 text-center">
                         <button 
                           onClick={() => handleOpenModal(row)}
@@ -410,7 +415,7 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
                   className="w-full p-4 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all resize-none leading-relaxed"
                 />
                 <p className="text-[11px] text-slate-400 italic">
-                  *Catatan dapat diedit bebas setelah ditarik otomatis dari log pengawasan.
+                  *Catatan akan tersimpan otomatis ke database dan tidak akan hilang saat halaman dimuat ulang.
                 </p>
               </div>
             </div>
