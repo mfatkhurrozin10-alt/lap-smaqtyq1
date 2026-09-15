@@ -83,13 +83,12 @@ export default function LaporanIkuUnitView({}: any) {
 
         flatRows.push({
           no: counter++,
-          // Mengambil kode dan judul asli dari tabel indikator_iku, berikan fallback jika belum di-link di database
-          kode_iku: iku?.kode_iku || 'IKU-KUR-01',
-          judul_iku: iku?.judul_iku || 'Indikator Kinerja Utama Unit Divisi',
-          target: iku?.target_deskripsi || prog.target_pencapaian || '100%',
+          kode_iku: iku?.kode_iku || 'IKU-UNIT',
+          judul_iku: iku?.judul_iku || `Indikator untuk ${prog.nama_program}`,
+          target: prog.target_pencapaian || iku?.target_deskripsi || '100%',
           realisasi: `${avgSkor}%`,
-          yayasan: iku?.target_deskripsi || prog.target_pencapaian || '100%',
-          kegiatan: prog.nama_program, // Nama program masuk ke kolom kegiatan
+          yayasan: '', // Dikosongkan sesuai permintaan
+          kegiatan: prog.nama_program,
           waktu: prog.timeframe || 'Harian',
           logs: filteredLogs
         });
@@ -197,7 +196,7 @@ export default function LaporanIkuUnitView({}: any) {
                     {/* NO */}
                     <td className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100">{row.no}</td>
                     
-                    {/* INDIKATOR (IKU) - Menampilkan Kode dan Judul IKU yang benar */}
+                    {/* INDIKATOR (IKU) - Sesuai dengan program masing-masing */}
                     <td className="px-6 py-5 border-r border-slate-100">
                       <div className="space-y-1.5">
                         <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100 inline-block">
@@ -209,7 +208,7 @@ export default function LaporanIkuUnitView({}: any) {
                       </div>
                     </td>
 
-                    {/* TARGET */}
+                    {/* TARGET - Sesuai target program */}
                     <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100">
                       {row.target}
                     </td>
@@ -219,12 +218,12 @@ export default function LaporanIkuUnitView({}: any) {
                       {row.realisasi}
                     </td>
 
-                    {/* YAYASAN (Hijau Muda) */}
+                    {/* YAYASAN (Hijau Muda - Dikosongkan) */}
                     <td className="px-5 py-5 font-black text-sm bg-emerald-50/40 text-emerald-700 border-r border-slate-100 whitespace-nowrap">
                       {row.yayasan}
                     </td>
 
-                    {/* KEGIATAN - Nama Program */}
+                    {/* KEGIATAN */}
                     <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
                       {row.kegiatan}
                     </td>
