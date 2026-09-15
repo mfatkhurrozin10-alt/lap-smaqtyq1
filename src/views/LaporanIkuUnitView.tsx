@@ -84,10 +84,9 @@ export default function LaporanIkuUnitView({}: any) {
           iku_id: ikuId || 'unknown',
           kode_iku: matchedIku?.kode_iku || prog.kode_iku || 'IKU-UNIT',
           judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.judul_iku || prog.nama_program,
-          // Target diambil dari master indikator_iku (target_deskripsi), fallback ke target program jika kosong
           target: matchedIku?.target_deskripsi || prog.target_pencapaian || '100%',
           realisasi: `${avgSkor}%`,
-          yayasan: '', // Dikosongkan sesuai permintaan
+          yayasan: '',
           kegiatan: prog.nama_program || '-',
           waktu: prog.timeframe || '-',
           logs: filteredLogs
@@ -103,10 +102,8 @@ export default function LaporanIkuUnitView({}: any) {
       let i = 0;
 
       while (i < rawRows.length) {
-        let currentIkuId = rawRows[i].iku_id;
         let currentKode = rawRows[i].kode_iku;
         
-        // Cari berapa banyak baris dengan IKU yang sama
         let count = 0;
         while (i + count < rawRows.length && rawRows[i + count].kode_iku === currentKode) {
           count++;
@@ -116,8 +113,8 @@ export default function LaporanIkuUnitView({}: any) {
           let row = rawRows[i + j];
           finalRows.push({
             ...row,
-            no: j === 0 ? groupCounter : '', // Nomor hanya tampil di baris pertama grup
-            rowSpan: j === 0 ? count : 0,    // Baris pertama memegang rowspan sejumlah count
+            no: j === 0 ? groupCounter : '',
+            rowSpan: j === 0 ? count : 0,
           });
         }
 
@@ -153,7 +150,6 @@ export default function LaporanIkuUnitView({}: any) {
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
       
-      {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-600 p-6 sm:p-8 rounded-3xl shadow-lg text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold tracking-wide">
@@ -196,7 +192,6 @@ export default function LaporanIkuUnitView({}: any) {
         </div>
       </div>
 
-      {/* TABEL REKAPITULASI IKU */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm border-collapse">
@@ -222,13 +217,11 @@ export default function LaporanIkuUnitView({}: any) {
                 </tr>
               ) : (
                 rekapRows.map((row: any, idx: number) => {
-                  // Jika rowSpan > 0, render sel tersebut. Jika rowSpan === 0, jangan render sel tersebut (karena digabung ke atas)
                   const showMergedCell = row.rowSpan !== 0;
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
                       
-                      {/* 1. NO (Merged) */}
                       {showMergedCell && (
                         <td 
                           rowSpan={row.rowSpan} 
@@ -238,7 +231,6 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
                       
-                      {/* 2. INDIKATOR (IKU) (Merged) */}
                       {showMergedCell && (
                         <td 
                           rowSpan={row.rowSpan} 
@@ -255,7 +247,6 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
 
-                      {/* 3. TARGET (Merged) */}
                       {showMergedCell && (
                         <td 
                           rowSpan={row.rowSpan} 
@@ -265,27 +256,22 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
 
-                      {/* 4. REALISASI (Biru Muda) - Per kegiatan */}
                       <td className={`px-5 py-5 font-black text-sm bg-blue-50/40 border-r border-slate-100 whitespace-nowrap ${getScoreTextColor(row.realisasi)}`}>
                         {row.realisasi}
                       </td>
 
-                      {/* 5. YAYASAN (Hijau Muda - Dikosongkan) */}
                       <td className="px-5 py-5 font-black text-sm bg-emerald-50/40 text-emerald-700 border-r border-slate-100 whitespace-nowrap">
                         {row.yayasan}
                       </td>
 
-                      {/* 6. KEGIATAN - Per kegiatan */}
                       <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
                         {row.kegiatan}
                       </td>
 
-                      {/* 7. WAKTU - Per kegiatan */}
                       <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium">
                         {row.waktu}
                       </td>
 
-                      {/* 8. CATATAN - Per kegiatan */}
                       <td className="px-6 py-5 border-r border-slate-100">
                         <div className="space-y-2">
                           {row.logs.length === 0 ? (
@@ -304,7 +290,6 @@ export default function LaporanIkuUnitView({}: any) {
                         </div>
                       </td>
 
-                      {/* 9. AKSI */}
                       <td className="px-5 py-5 text-center">
                         <button 
                           onClick={() => alert(`Edit / Evaluasi Kegiatan: ${row.kegiatan}`)}
