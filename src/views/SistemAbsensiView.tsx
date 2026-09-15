@@ -179,10 +179,10 @@ export default function SistemAbsensiView({ showNotification }: any) {
 
     setLoading(true);
     try {
-      // Hapus data lama di tanggal ini untuk kelas ini agar tidak dobel
+    // Hapus data lama di tanggal ini untuk kelas ini agar tidak dobel
       const nisnList = studentsInClass.map(s => s.nisn || s.nis).filter(Boolean);
       if (nisnList.length > 0) {
-         await supabase.from('kehadiran').delete().eq('tanggal', selectedDate).in('nisn', nisnList);
+         await (supabase.from('kehadiran').delete().eq('tanggal', selectedDate) as any).in('nisn', nisnList);
       }
 
       const payloadList = Object.entries(attendanceRecords).map(([siswaId, status]) => {
