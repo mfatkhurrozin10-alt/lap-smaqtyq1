@@ -38,20 +38,21 @@ export default function DivisiKurikulumView({ showNotification }: any) {
 
   const fetchInitialData = async () => {
     try {
-      const { data: divList } = await supabase.from('divisi').select('*');
-      // Perbaikan tipe eksplisit (d: any) agar lolos build Vercel
+      const { data: divList, error: divErr } = await supabase.from('divisi').select('*');
+      if (divErr) throw divErr;
+
       const kurikulumDiv = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('kurikulum')) || divList?.[0];
 
       if (kurikulumDiv) {
         setDivisiData(kurikulumDiv);
         const { data: prog } = await supabase.from('program_kegiatan').select('*').eq('divisi_id', kurikulumDiv.id);
         setProgramList(prog || []);
-        if (prog && prog.length > 0 && !selectedProgramId) {
+        if (prog && prog.length > 0) {
           setSelectedProgramId(prog[0].id);
         }
       }
     } catch (err: any) {
-      showNotification('Gagal memuat data kurikulum', 'error');
+      console.error(err);
     }
   };
 
@@ -110,19 +111,19 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       const { error } = await supabase.from('divisi_log_pengawasan').insert([payload]);
       if (error) throw error;
 
-      showNotification('Form ceklis berhasil disimpan!', 'success');
+      if (showNotification) showNotification('Form ceklis berhasil disimpan!', 'success');
       setCheckedItems({});
       setFormInput({ ...formInput, guru_target: '', mapel_kelas: '', catatan: '' });
       fetchProgramDetail();
       setActiveSubTab('riwayat');
     } catch (err: any) {
-      showNotification(err.message, 'error');
+      if (showNotification) showNotification(err.message, 'error');
     }
   };
 
   const handleAddKategori = async (e: any) => {
     e.preventDefault();
-    if (!newKategoriNama) return;
+    if (!newKategoriNama || !selectedProgramId) return;
     try {
       const { error } = await supabase.from('divisi_kategori_indikator').insert([{
         program_id: selectedProgramId,
@@ -131,10 +132,10 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       }]);
       if (error) throw error;
       setNewKategoriNama('');
-      showNotification('Kategori baru ditambahkan', 'success');
+      if (showNotification) showNotification('Kategori baru ditambahkan', 'success');
       fetchProgramDetail();
     } catch (err: any) {
-      showNotification(err.message, 'error');
+      if (showNotification) showNotification(err.message, 'error');
     }
   };
 
@@ -148,26 +149,27 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       }]);
       if (error) throw error;
       setInputButirBaru({ ...inputButirBaru, [kategoriId]: '' });
-      showNotification('Butir ceklis ditambahkan', 'success');
+      if (showNotification) showNotification('Butir ceklis ditambahkan', 'success');
       fetchProgramDetail();
     } catch (err: any) {
-      showNotification(err.message, 'error');
+      if (showNotification) showNotification(err.message, 'error');
     }
   };
 
   const handleDeleteButir = async (butirId: string) => {
     try {
       await supabase.from('divisi_butir_ceklis').delete().eq('id', butirId);
-      showNotification('Butir dihapus', 'success');
+      if (showNotification) showNotification('Butir dihapus', 'success');
       fetchProgramDetail();
     } catch (err: any) {
-      showNotification(err.message, 'error');
+      if (showNotification) showNotification(err.message, 'error');
     }
   };
 
   const handleToggleConfig = async (field: string, value: boolean) => {
     const updated = { ...formConfig, [field]: value };
     setFormConfig(updated);
+    if (!selectedProgramId) return;
     try {
       const { data: existing } = await supabase.from('divisi_form_config').select('id').eq('program_id', selectedProgramId);
       if (existing && existing.length > 0) {
@@ -175,7 +177,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       } else {
         await supabase.from('divisi_form_config').insert([{ program_id: selectedProgramId, [field]: value }]);
       }
-      showNotification('Konfigurasi form disimpan', 'success');
+      if (showNotification) showNotification('Konfigurasi form disimpan', 'success');
     } catch (err: any) {
       console.error(err);
     }
@@ -209,9 +211,13 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             onChange={(e) => setSelectedProgramId(e.target.value)}
             className="py-2 px-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none shadow-sm"
           >
-            {programList.map((p: any) => (
-              <option key={p.id} value={p.id}>{p.nama_program} ({riwayatList.filter((r: any) => r.program_id === p.id).length} data)</option>
-            ))}
+            {programList.length === 0 ? (
+              <option value="">Belum ada program di Divisi ini</option>
+            ) : (
+              programList.map((p: any) => (
+                <option key={p.id} value={p.id}>{p.nama_program}</option>
+              ))
+            )}
           </select>
           
           <button onClick={fetchProgramDetail} className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors" title="Refresh Data">
@@ -307,31 +313,37 @@ export default function DivisiKurikulumView({ showNotification }: any) {
           </div>
 
           <div className="space-y-4">
-            {kategoriList.map((kat: any) => (
-              <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                    {kat.nama_kategori} <span className="text-xs text-slate-400 font-normal">({kat.divisi_butir_ceklis?.length || 0} Indikator)</span>
-                  </h4>
-                  <span className="text-xs font-semibold px-3 py-1 bg-rose-50 text-rose-600 rounded-full border border-rose-100">{kat.tipe_kategori}</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {kat.divisi_butir_ceklis?.map((butir: any) => (
-                    <label key={butir.id} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 rounded-xl cursor-pointer transition-colors">
-                      <input 
-                        type="checkbox" 
-                        checked={!!checkedItems[butir.id]} 
-                        onChange={e => setCheckedItems({...checkedItems, [butir.id]: e.target.checked})}
-                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
-                      />
-                      <span className="text-sm font-medium text-slate-700">{butir.nama_butir}</span>
-                    </label>
-                  ))}
-                </div>
+            {kategoriList.length === 0 ? (
+              <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400">
+                Belum ada kategori indikator. Silakan tambah melalui menu <span className="font-bold text-slate-600">Customize Form</span> di atas.
               </div>
-            ))}
+            ) : (
+              kategoriList.map((kat: any) => (
+                <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                      {kat.nama_kategori} <span className="text-xs text-slate-400 font-normal">({kat.divisi_butir_ceklis?.length || 0} Indikator)</span>
+                    </h4>
+                    <span className="text-xs font-semibold px-3 py-1 bg-rose-50 text-rose-600 rounded-full border border-rose-100">{kat.tipe_kategori}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {kat.divisi_butir_ceklis?.map((butir: any) => (
+                      <label key={butir.id} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 rounded-xl cursor-pointer transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={!!checkedItems[butir.id]} 
+                          onChange={e => setCheckedItems({...checkedItems, [butir.id]: e.target.checked})}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
+                        />
+                        <span className="text-sm font-medium text-slate-700">{butir.nama_butir}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -376,17 +388,23 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {riwayatList.map((item: any, idx: number) => (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 font-mono text-slate-400">{idx + 1}</td>
-                    <td className="px-6 py-4 text-slate-600">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-800">{item.petugas_pj}</td>
-                    <td className="px-6 py-4 text-slate-700">{item.guru_target || '-'}</td>
-                    <td className="px-6 py-4 text-slate-600">{item.mapel_kelas || '-'}</td>
-                    <td className="px-6 py-4 font-black text-blue-600">{item.skor_persen}%</td>
-                    <td className="px-6 py-4 text-slate-500 italic max-w-xs truncate">{item.catatan_temuan || 'Tidak ada catatan'}</td>
+                {riwayatList.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12 text-slate-400">Belum ada riwayat pengawasan.</td>
                   </tr>
-                ))}
+                ) : (
+                  riwayatList.map((item: any, idx: number) => (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-mono text-slate-400">{idx + 1}</td>
+                      <td className="px-6 py-4 text-slate-600">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-800">{item.petugas_pj}</td>
+                      <td className="px-6 py-4 text-slate-700">{item.guru_target || '-'}</td>
+                      <td className="px-6 py-4 text-slate-600">{item.mapel_kelas || '-'}</td>
+                      <td className="px-6 py-4 font-black text-blue-600">{item.skor_persen}%</td>
+                      <td className="px-6 py-4 text-slate-500 italic max-w-xs truncate">{item.catatan_temuan || 'Tidak ada catatan'}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -487,7 +505,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                     type="text" 
                     placeholder="Tambah butir indikator baru..." 
                     value={inputButirBaru[kat.id] || ''} 
-                    onChange={e => getInputButirBaruSetter(kat.id, e.target.value)}
+                    onChange={e => setInputButirBaru({...inputButirBaru, [kat.id]: e.target.value})}
                     className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
                   />
                   <button onClick={() => handleAddButir(kat.id)} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl">
@@ -501,8 +519,4 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       )}
     </div>
   );
-
-  function getInputButirBaruSetter(id: string, val: string) {
-    setInputButirBaru({...inputButirBaru, [id]: val});
-  }
 }
