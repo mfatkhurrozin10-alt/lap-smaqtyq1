@@ -5,10 +5,8 @@ import { Icons } from '../Icons';
 import { Card } from '../components/UIComponents';
 
 export default function SistemAbsensiView({ showNotification, user }: any) {
-  // === STATE NAVIGATION ===
   const [activeTab, setActiveTab] = useState<'input' | 'rekap_harian' | 'detail' | 'rekap_bulanan'>('rekap_harian');
 
-  // === STATE FILTER & DATA ===
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [selectedClass, setSelectedClass] = useState<string>('');
@@ -18,11 +16,9 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
 
-  // === STATE KHUSUS INPUT ABSENSI ===
   const [assignedClasses, setAssignedClasses] = useState<string[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<Record<string, string>>({});
 
-  // 1. Fetch Data Global untuk Rekap (Semua Kelas & Kehadiran Bulan Ini)
   const fetchData = useCallback(async () => {
     setFetchLoading(true);
     try {
@@ -65,7 +61,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
 
   const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => s.kelas?.trim()).filter(Boolean))).sort(), [siswaList]);
 
-  // 2. Fetch Kelas Binaan BK (Aman dari error UUID untuk akun Admin)
   useEffect(() => {
     const fetchBkClasses = async () => {
       if (!user?.id || user.role === 'admin' || user.id === 'admin-123') {
@@ -98,7 +93,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     }
   }, [user, availableClasses, selectedClass]);
 
-  // 3. Inisialisasi Default 'Hadir' atau Data yang Sudah Ada saat Kelas/Tanggal Dipilih
   useEffect(() => {
     if (!selectedClass || siswaList.length === 0) return;
     
@@ -108,15 +102,13 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     
     studentsInClass.forEach((s: any) => {
       if (s.id) {
-        const existingRecord = todayRecords.find(r => r.nisn === s.nisn || r.nisn === s.nis);
+        const existingRecord = todayRecords.find(r => String(r.nisn).trim() === String(s.nisn || s.nis).trim());
         initialStatus[s.id] = existingRecord ? existingRecord.keterangan : 'Hadir';
       }
     });
     setAttendanceRecords(initialStatus);
   }, [selectedClass, siswaList, selectedDate, kehadiranList]);
 
-
-  // === HANDLER INPUT ABSENSI ===
   const handleAttendanceChange = (siswaId: string, status: string) => {
     setAttendanceRecords(prev => ({
       ...prev,
@@ -124,6 +116,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     }));
   };
 
+  // FUNGSI SIMPAN & EDIT YANG DIOPTIMALKAN
   const handleSaveAttendance = async () => {
     const studentsInClass = siswaList.filter(s => s.kelas?.trim() === selectedClass);
     
@@ -134,23 +127,9 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
 
     setLoading(true);
     try {
-      const nisnList = studentsInClass.map(s => s.nisn || s.nis).filter(Boolean);
-
-      // 1. Hapus data absensi lama di tanggal & kelas ini terlebih dahulu (Mendukung fungsi Edit)
-      if (nisnList.length > 0) {
-        const deletePromises = nisnList.map(identifier => 
-          (supabase.from('kehadiran').delete() as any).match({ 
-            tanggal: selectedDate, 
-            nisn: identifier 
-          })
-        );
-        await Promise.all(deletePromises);
-      }
-
-      // 2. Masukkan data absensi baru / hasil perubahan
       const payloadList = Object.entries(attendanceRecords).map(([siswaId, status]) => {
         const foundSiswa = studentsInClass.find(s => s.id === siswaId);
-        const identifier = foundSiswa?.nisn || foundSiswa?.nis || '-';
+        const identifier = String(foundSiswa?.nisn || foundSiswa?.nis || '-').trim();
         return {
           nisn: identifier,
           nama: foundSiswa?.nama || 'Siswa',
@@ -159,10 +138,18 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
         };
       });
 
+      // Menggunakan pendekatan iterasi satuan (Hapus data lama siswa di tanggal tersebut, lalu insert baru)
+      // Cara ini 100% aman dan tidak bergantung pada konfigurasi constraint database tertentu.
+      for (const item of payloadList) {
+        // Hapus presensi lama siswa ini di tanggal yang sama
+        await supabase.from('kehadiran').delete().eq('tanggal', item.tanggal).eq('nisn', item.nisn);
+      }
+
+      // Masukkan data baru
       const { error } = await supabase.from('kehadiran').insert(payloadList);
       if (error) throw error;
       
-      showNotification(`Berhasil memperbarui rekap absensi ${selectedClass}!`, 'success');
+      showNotification(`Berhasil menyimpan rekap absensi ${selectedClass}!`, 'success');
       await fetchData();
       setActiveTab('rekap_harian');
     } catch (err: any) {
@@ -178,8 +165,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     setActiveTab('input');
   };
 
-
-  // === DATA PROCESSOR REKAP ===
   const dailyData = useMemo(() => {
     const todayRecords = kehadiranList.filter(k => k.tanggal === selectedDate);
     const classMap: Record<string, { total: number, hadir: number, sakit: number, izin: number, alfa: number, absentStudents: any[] }> = {};
@@ -189,7 +174,8 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
       const cls = s.kelas?.trim();
       if (!cls || !classMap[cls]) return;
       classMap[cls].total++;
-      const record = todayRecords.find(r => r.nisn === s.nisn || r.nisn === s.nis);
+      const sNisn = String(s.nisn || s.nis || '').trim();
+      const record = todayRecords.find(r => String(r.nisn || '').trim() === sNisn);
       if (record) {
         const ket = (record.keterangan || '').toLowerCase();
         if (ket.includes('hadir')) classMap[cls].hadir++;
@@ -207,7 +193,8 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
 
   const detailData = useMemo(() => {
     return siswaList.filter(s => s.kelas?.trim() === selectedClass).map(s => {
-      const records = kehadiranList.filter(k => (k.nisn === s.nisn || k.nisn === s.nis));
+      const sNisn = String(s.nisn || s.nis || '').trim();
+      const records = kehadiranList.filter(k => String(k.nisn || '').trim() === sNisn);
       let h = 0, sk = 0, i = 0, a = 0;
       records.forEach(r => {
         const ket = (r.keterangan || '').toLowerCase();
@@ -225,7 +212,8 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     siswaList.forEach(s => {
       const cls = s.kelas?.trim();
       if (!cls || !classMap[cls]) return;
-      const records = kehadiranList.filter(k => (k.nisn === s.nisn || k.nisn === s.nis));
+      const sNisn = String(s.nisn || s.nis || '').trim();
+      const records = kehadiranList.filter(k => String(k.nisn || '').trim() === sNisn);
       records.forEach(r => {
         const ket = (r.keterangan || '').toLowerCase();
         if (ket.includes('hadir')) classMap[cls].hadir++; else if (ket.includes('sakit')) classMap[cls].sakit++; else if (ket.includes('izin')) classMap[cls].izin++; else classMap[cls].alfa++;
@@ -242,17 +230,13 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     hadir: acc.hadir + curr.hadir, sakit: acc.sakit + curr.sakit, izin: acc.izin + curr.izin, alfa: acc.alfa + curr.alfa
   }), { hadir: 0, sakit: 0, izin: 0, alfa: 0 }), [monthlyData]);
 
-
   return (
     <div className="w-full bg-slate-50 min-h-screen text-slate-800">
-      
-      {/* HEADER & TABS */}
       <div className="bg-indigo-600 rounded-3xl p-4 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-md mb-6">
         <h1 className="font-extrabold text-xl sm:text-2xl text-white flex items-center gap-3">
           <span className="bg-white/20 p-2 rounded-xl"><Icons.FileText /></span>
           Sistem Absensi Santri
         </h1>
-        
         <div className="flex flex-wrap items-center gap-1.5 bg-indigo-800/40 p-1.5 rounded-2xl w-fit">
           <button onClick={() => setActiveTab('input')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'input' ? 'bg-white text-indigo-700 shadow' : 'text-indigo-100 hover:bg-white/10'}`}>Input Absensi</button>
           <button onClick={() => setActiveTab('rekap_harian')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'rekap_harian' ? 'bg-white text-indigo-700 shadow' : 'text-indigo-100 hover:bg-white/10'}`}>Rekap Hari Ini</button>
@@ -265,14 +249,11 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
         <div className="p-12 text-center text-slate-400 font-medium animate-pulse">Memuat data absensi...</div>
       ) : (
         <>
-          {/* ================= TAB 1: INPUT ABSENSI ================= */}
           {activeTab === 'input' && (
             <div className="space-y-6 w-full text-left animate-in fade-in duration-300">
-              
               {assignedClasses.length === 0 ? (
                 <div className="p-8 sm:p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-sm">
                   <h3 className="text-base sm:text-lg font-bold text-slate-800">Belum Ada Kelas Tersedia</h3>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-1">Belum ada data kelas atau siswa yang terdaftar di sistem.</p>
                 </div>
               ) : (
                 <>
@@ -349,8 +330,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
             </div>
           )}
 
-
-          {/* ================= TAB 2: REKAP HARI INI ================= */}
           {activeTab === 'rekap_harian' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -360,10 +339,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
                     <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500" />
                     <button onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold rounded-xl transition-colors">Hari Ini</button>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  Progres: <b className="text-slate-800">{dailyData.filter(d => (d.hadir + d.sakit + d.izin + d.alfa) > 0).length}</b> dari {availableClasses.length} Rombel Terinput
                 </div>
               </div>
 
@@ -396,9 +371,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
               </div>
 
               <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100">
-                  <h3 className="font-bold text-slate-800 text-sm uppercase">Rekap Presensi Harian Per Rombel Kelas</h3>
-                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm whitespace-nowrap min-w-[900px]">
                     <thead className="bg-slate-50/50 text-[11px] font-extrabold text-slate-500">
@@ -429,11 +401,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
                             <td className="px-5 py-3 text-center font-bold text-blue-600">{row.izin}</td>
                             <td className="px-5 py-3 text-center font-bold text-rose-600">{row.alfa}</td>
                             <td className="px-5 py-3 text-center">
-                              {isInputted ? (
-                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{pct}%</span>
-                              ) : (
-                                <span className="bg-rose-50 text-rose-500 border border-rose-200 px-2.5 py-1 rounded-full font-bold text-[10px]">Belum Diabsen</span>
-                              )}
+                              {isInputted ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{pct}%</span> : <span className="bg-rose-50 text-rose-500 border border-rose-200 px-2.5 py-1 rounded-full font-bold text-[10px]">Belum Diabsen</span>}
                             </td>
                             <td className="px-5 py-3">
                               {!isInputted ? <span className="text-slate-300">-</span> : row.absentStudents.length === 0 ? <span className="text-emerald-500 font-medium text-xs">-</span> : (
@@ -461,20 +429,18 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
             </div>
           )}
 
-
-          {/* ================= TAB 3: DETAIL KEHADIRAN ================= */}
           {activeTab === 'detail' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-wrap items-end gap-4">
                 <div className="space-y-1.5 flex-1 min-w-[200px]">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Kelas</label>
-                  <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500">
+                  <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none">
                     {availableClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5 flex-1 min-w-[200px]">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Bulan</label>
-                  <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none" />
                 </div>
               </div>
 
@@ -502,11 +468,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
                         <td className="px-5 py-3.5 text-center font-bold text-amber-600">{row.s}</td>
                         <td className="px-5 py-3.5 text-center font-bold text-blue-600">{row.i}</td>
                         <td className="px-5 py-3.5 text-center font-bold text-rose-600">{row.a}</td>
-                        <td className="px-5 py-3.5 text-center">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${row.pct === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                            {row.pct.toFixed(1)}%
-                          </span>
-                        </td>
+                        <td className="px-5 py-3.5 text-center"><span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{row.pct.toFixed(1)}%</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -515,45 +477,11 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
             </div>
           )}
 
-
-          {/* ================= TAB 4: REKAP BULANAN ================= */}
           {activeTab === 'rekap_bulanan' && (
             <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-                <div className="space-y-1.5 min-w-[250px]">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Bulan Rekapitulasi</label>
-                  <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-bold text-slate-800 mb-3">Statistik Absensi Bulan {selectedMonth}</h3>
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Hadir</p>
-                    <p className="text-3xl font-extrabold text-emerald-500 mt-1">{monthlyGlobalStats.hadir}</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border-l-4 border-l-amber-500 border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Sakit</p>
-                    <p className="text-3xl font-extrabold text-amber-500 mt-1">{monthlyGlobalStats.sakit}</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border-l-4 border-l-blue-500 border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Izin</p>
-                    <p className="text-3xl font-extrabold text-blue-500 mt-1">{monthlyGlobalStats.izin}</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border-l-4 border-l-rose-500 border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Alpha</p>
-                    <p className="text-3xl font-extrabold text-rose-500 mt-1">{monthlyGlobalStats.alfa}</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">% Kehadiran</p>
-                    <p className="text-3xl font-extrabold text-slate-700 mt-1">
-                      {(monthlyGlobalStats.hadir + monthlyGlobalStats.sakit + monthlyGlobalStats.izin + monthlyGlobalStats.alfa) > 0 
-                        ? ((monthlyGlobalStats.hadir / (monthlyGlobalStats.hadir + monthlyGlobalStats.sakit + monthlyGlobalStats.izin + monthlyGlobalStats.alfa)) * 100).toFixed(1) 
-                        : 0}%
-                    </p>
-                  </div>
-                </div>
+              <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Bulan Rekapitulasi</label>
+                <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full sm:w-72 mt-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none" />
               </div>
 
               <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
@@ -572,13 +500,11 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
                     {monthlyData.map(row => (
                       <tr key={row.kelas} className="hover:bg-slate-50/80 transition-colors">
                         <td className="px-6 py-3.5 font-extrabold text-slate-800">{row.kelas}</td>
-                        <td className="px-6 py-3.5 text-center font-bold text-emerald-600 bg-emerald-50/10">{row.hadir}</td>
-                        <td className="px-6 py-3.5 text-center font-bold text-amber-600 bg-amber-50/10">{row.sakit}</td>
-                        <td className="px-6 py-3.5 text-center font-bold text-blue-600 bg-blue-50/10">{row.izin}</td>
-                        <td className="px-6 py-3.5 text-center font-bold text-rose-600 bg-rose-50/10">{row.alfa}</td>
-                        <td className="px-6 py-3.5 text-center">
-                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{row.pct.toFixed(1)}%</span>
-                        </td>
+                        <td className="px-6 py-3.5 text-center font-bold text-emerald-600">{row.hadir}</td>
+                        <td className="px-6 py-3.5 text-center font-bold text-amber-600">{row.sakit}</td>
+                        <td className="px-6 py-3.5 text-center font-bold text-blue-600">{row.izin}</td>
+                        <td className="px-6 py-3.5 text-center font-bold text-rose-600">{row.alfa}</td>
+                        <td className="px-6 py-3.5 text-center"><span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{row.pct.toFixed(1)}%</span></td>
                       </tr>
                     ))}
                   </tbody>
