@@ -41,26 +41,22 @@ export default function LaporanIkuUnitView({}: any) {
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
-      // 1. Ambil data program kegiatan beserta relasi indikator_iku murni dari database Supabase
+      // 1. Ambil seluruh data master Indikator IKU
+      const { data: ikuList } = await supabase.from('indikator_iku').select('*');
+      const ikuMap = new Map();
+      (ikuList || []).forEach((item: any) => {
+        ikuMap.set(item.id, item);
+      });
+
+      // 2. Ambil program kegiatan berdasarkan divisi
       const { data: progList, error: progErr } = await supabase
         .from('program_kegiatan')
-        .select(`
-          id,
-          nama_program,
-          timeframe,
-          target_pencapaian,
-          indikator_iku (
-            id,
-            kode_iku,
-            judul_iku,
-            target_deskripsi
-          )
-        `)
+        .select('*')
         .eq('divisi_id', selectedDivisiId);
 
       if (progErr) throw progErr;
 
-      // 2. Ambil log pengawasan
+      // 3. Ambil log pengawasan
       const { data: logs, error: logErr } = await supabase
         .from('divisi_log_pengawasan')
         .select('*');
@@ -71,9 +67,11 @@ export default function LaporanIkuUnitView({}: any) {
       let flatRows: any[] = [];
       let counter = 1;
 
-      // 3. Petakan langsung data dari database tanpa hardcode teks apa pun
+      // 4. Gabungkan data dengan pencocokan ID IKU yang fleksibel
       (progList || []).forEach((prog: any) => {
-        const iku = prog.indikator_iku;
+        // Cari ID IKU dari berbagai kemungkinan nama kolom di tabel program_kegiatan
+        const ikuId = prog.indikator_id || prog.indikator_iku_id || prog.iku_id;
+        const matchedIku = ikuMap.get(ikuId);
 
         const pLogs = allLogs.filter((l: any) => l.program_id === prog.id);
         const filteredLogs = pLogs.filter((l: any) => {
@@ -86,9 +84,9 @@ export default function LaporanIkuUnitView({}: any) {
 
         flatRows.push({
           no: counter++,
-          kode_iku: iku?.kode_iku || 'IKU-UNIT',
-          judul_iku: iku?.judul_iku || '-',
-          target: prog.target_pencapaian || iku?.target_deskripsi || '-',
+          kode_iku: matchedIku?.kode_iku || prog.kode_iku || 'IKU-UNIT',
+          judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.judul_iku || prog.nama_program,
+          target: prog.target_pencapaian || matchedIku?.target_deskripsi || '100%',
           realisasi: `${avgSkor}%`,
           yayasan: '', // Dikosongkan sesuai permintaan
           kegiatan: prog.nama_program || '-',
@@ -199,7 +197,7 @@ export default function LaporanIkuUnitView({}: any) {
                     {/* 1. NO */}
                     <td className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100">{row.no}</td>
                     
-                    {/* 2. INDIKATOR (IKU) - Murni dari database */}
+                    {/* 2. INDIKATOR (IKU) */}
                     <td className="px-6 py-5 border-r border-slate-100">
                       <div className="space-y-1.5">
                         <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100 inline-block">
@@ -211,7 +209,7 @@ export default function LaporanIkuUnitView({}: any) {
                       </div>
                     </td>
 
-                    {/* 3. TARGET - Murni dari database */}
+                    {/* 3. TARGET */}
                     <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100">
                       {row.target}
                     </td>
