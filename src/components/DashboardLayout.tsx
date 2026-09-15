@@ -22,18 +22,20 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
     return (
       <button
         onClick={() => setActiveTab(id)}
-        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all mb-1 ${
+        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all mb-1 overflow-hidden ${
           isActive 
             ? 'bg-blue-600 text-white shadow-md' 
             : 'text-slate-300 hover:bg-slate-800 hover:text-white'
         }`}
       >
-        <div className="flex items-center gap-3">
-          {icon}
-          <span className="text-sm font-medium">{label}</span>
+        <div className="flex items-center gap-3 overflow-hidden">
+          {/* Tambahkan shrink-0 agar ikon tidak gepeng */}
+          <div className="shrink-0">{icon}</div>
+          {/* Ubah text-sm menjadi text-xs dan tambahkan truncate */}
+          <span className="text-[13px] font-medium truncate">{label}</span>
         </div>
         {badge && (
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeColor || (isActive ? 'bg-white text-blue-600' : 'bg-slate-700 text-slate-300')}`}>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${badgeColor || (isActive ? 'bg-white text-blue-600' : 'bg-slate-700 text-slate-300')}`}>
             {badge}
           </span>
         )}
@@ -42,9 +44,10 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
   };
 
   const SubMenuItem = ({ icon, label }: any) => (
-    <button className="w-full flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-left">
-      {icon}
-      <span className="text-sm">{label}</span>
+    <button className="w-full flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-left overflow-hidden">
+      <div className="shrink-0">{icon}</div>
+      {/* Ubah text-sm menjadi text-xs dan tambahkan truncate */}
+      <span className="text-[13px] truncate">{label}</span>
     </button>
   );
 
@@ -71,7 +74,6 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
           <MenuItem id="dashboard-pantauan" icon={<LayoutDashboard size={20} />} label="Dashboard Pantauan" />
           <MenuItem id="laporan-iku" icon={<FileText size={20} />} label="Laporan IKU Unit" />
           
-          {/* Badge angka dihilangkan agar seragam dan bersih */}
           <MenuItem id="rekap-penilaian" icon={<Users size={20} />} label="Rekap Penilaian" />
           <MenuItem id="presensi-absensi" icon={<UserCheck size={20} />} label="Presensi & Absensi" />
           
