@@ -183,9 +183,12 @@ export default function SistemAbsensiView({ showNotification }: any) {
       const nisnList = studentsInClass.map(s => s.nisn || s.nis).filter(Boolean);
       if (nisnList.length > 0) {
         // Menggunakan Promise.all untuk mencegah error .in() pada versi Supabase tertentu
-        const deletePromises = nisnList.map(identifier => 
-          supabase.from('kehadiran').delete().eq('tanggal', selectedDate).eq('nisn', identifier)
-        );
+            const deletePromises = nisnList.map(identifier => 
+            (supabase.from('kehadiran').delete() as any).match({ 
+                tanggal: selectedDate, 
+                nisn: identifier 
+            })
+            );
         await Promise.all(deletePromises);
       }
 
