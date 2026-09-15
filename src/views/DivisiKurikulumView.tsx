@@ -39,7 +39,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const fetchInitialData = async () => {
     try {
       const { data: divList } = await supabase.from('divisi').select('*');
-      const kurikulumDiv = divList?.find(d => d.nama_divisi?.toLowerCase().includes('kurikulum')) || divList?.[0];
+      // Perbaikan tipe eksplisit (d: any) agar lolos build Vercel
+      const kurikulumDiv = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('kurikulum')) || divList?.[0];
 
       if (kurikulumDiv) {
         setDivisiData(kurikulumDiv);
@@ -180,7 +181,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     }
   };
 
-  const selectedProgramObj = programList.find(p => p.id === selectedProgramId);
+  const selectedProgramObj = programList.find((p: any) => p.id === selectedProgramId);
 
   return (
     <div className="space-y-6 w-full text-left pb-12">
@@ -208,8 +209,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             onChange={(e) => setSelectedProgramId(e.target.value)}
             className="py-2 px-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none shadow-sm"
           >
-            {programList.map(p => (
-              <option key={p.id} value={p.id}>{p.nama_program} ({riwayatList.filter(r => r.program_id === p.id).length} data)</option>
+            {programList.map((p: any) => (
+              <option key={p.id} value={p.id}>{p.nama_program} ({riwayatList.filter((r: any) => r.program_id === p.id).length} data)</option>
             ))}
           </select>
           
@@ -306,7 +307,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
           </div>
 
           <div className="space-y-4">
-            {kategoriList.map(kat => (
+            {kategoriList.map((kat: any) => (
               <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h4 className="font-bold text-slate-800 flex items-center gap-2">
@@ -375,7 +376,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {riwayatList.map((item, idx) => (
+                {riwayatList.map((item: any, idx: number) => (
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 font-mono text-slate-400">{idx + 1}</td>
                     <td className="px-6 py-4 text-slate-600">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
@@ -402,7 +403,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
             <p className="text-xs font-bold text-slate-400 uppercase">Realisasi Tercapai</p>
             <h3 className="text-3xl font-black text-blue-600">
-              {riwayatList.length > 0 ? (riwayatList.reduce((acc, curr) => acc + Number(curr.skor_persen), 0) / riwayatList.length).toFixed(1) : 0}%
+              {riwayatList.length > 0 ? (riwayatList.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen), 0) / riwayatList.length).toFixed(1) : 0}%
             </h3>
             <p className="text-xs text-slate-500">Rata-rata kepatuhan dari {riwayatList.length} sesi</p>
           </div>
@@ -465,7 +466,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
           </div>
 
           <div className="space-y-4">
-            {kategoriList.map(kat => (
+            {kategoriList.map((kat: any) => (
               <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h4 className="font-bold text-slate-800">{kat.nama_kategori}</h4>
@@ -486,7 +487,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                     type="text" 
                     placeholder="Tambah butir indikator baru..." 
                     value={inputButirBaru[kat.id] || ''} 
-                    onChange={e => setInputButirBaru({...inputButirBaru, [kat.id]: e.target.value})}
+                    onChange={e => getInputButirBaruSetter(kat.id, e.target.value)}
                     className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
                   />
                   <button onClick={() => handleAddButir(kat.id)} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl">
@@ -500,4 +501,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       )}
     </div>
   );
+
+  function getInputButirBaruSetter(id: string, val: string) {
+    setInputButirBaru({...inputButirBaru, [id]: val});
+  }
 }
