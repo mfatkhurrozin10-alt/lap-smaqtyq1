@@ -9,7 +9,7 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
   const [tabunganData, setTabunganData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [filterKelas, setFilterKelas] = useState('ALL');
+  const [filterKelas, setFilterKelas] = useState(''); // Default kosong, akan diisi otomatis ke kelas pertama
   
   // State tambahan untuk Filter Tabungan Kosong dan Pengurutan (Sorting)
   const [filterStatusTabungan, setFilterStatusTabungan] = useState('ALL'); // 'ALL' | 'KOSONG' | 'ADA'
@@ -57,6 +57,13 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
   const availableClasses = useMemo(() => {
     return Array.from(new Set(tabunganData.map(s => s.kelas?.trim()).filter(Boolean))).sort();
   }, [tabunganData]);
+
+  // Set otomatis filter kelas ke kelas pertama saat data dan daftar kelas siap
+  useEffect(() => {
+    if (availableClasses.length > 0 && !filterKelas) {
+      setFilterKelas(availableClasses[0]);
+    }
+  }, [availableClasses, filterKelas]);
 
   // Filter dan Sorting digabungkan secara dinamis
   const filteredTabungan = useMemo(() => {
@@ -114,7 +121,7 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
     tabunganData.forEach(siswa => {
       if (siswa.history && Array.isArray(siswa.history)) {
         siswa.history.forEach((h: any) => {
-          const tgl = h.tanggal; // Format: DD/MM/YYYY
+          const tgl = h.tanggal; // Format: DD/MM/YYYY atau YYYY-MM-DD
           const nominal = Number(h.nominal || 0);
           if (tgl) {
             dailyMap[tgl] = (dailyMap[tgl] || 0) + nominal;
@@ -123,11 +130,16 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
       }
     });
 
-    // Urutkan berdasarkan tanggal (ubah DD/MM/YYYY ke timestamp untuk sorting)
+    // Urutkan berdasarkan tanggal
     const sortedDates = Object.keys(dailyMap).sort((a, b) => {
-      const [dA, mA, yA] = a.split('/').map(Number);
-      const [dB, mB, yB] = b.split('/').map(Number);
-      return new Date(yA, mA - 1, dA).getTime() - new Date(yB, mB - 1, dB).getTime();
+      const parseDate = (dateStr: string) => {
+        if (dateStr.includes('/')) {
+          const [d, m, y] = dateStr.split('/').map(Number);
+          return new Date(y, m - 1, d).getTime();
+        }
+        return new Date(dateStr).getTime();
+      };
+      return parseDate(a) - parseDate(b);
     });
 
     return sortedDates.map(tgl => ({
@@ -216,30 +228,30 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
             </div>
 
             {loading ? (
-              <div className="h-48 flex items-center justify-center text-xs text-slate-400">Memuat grafik...</div>
+              <div className="h-56 flex items-center justify-center text-xs text-slate-400">Memuat grafik...</div>
             ) : chartData.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-xs text-slate-400">Belum ada data riwayat transaksi harian.</div>
+              <div className="h-56 flex items-center justify-center text-xs text-slate-400">Belum ada data riwayat transaksi harian.</div>
             ) : (
               <div className="pt-4">
-                {/* SVG Line Chart yang Responsif & Elegan */}
-                <div className="w-full h-48 overflow-x-auto">
-                  <svg className="w-full h-full min-w-[400px]" viewBox="0 0 500 180" preserveAspectRatio="none">
+                {/* SVG Line Chart yang Diperlebar & Diberi Ruang Label Bawah */}
+                <div className="w-full h-56 overflow-x-auto pb-6">
+                  <svg className="w-full h-full min-w-[650px]" viewBox="0 0 700 200" preserveAspectRatio="none">
                     {/* Grid Garis Latar Belakang */}
-                    <line x1="0" y1="30" x2="500" y2="30" stroke="#f1f5f9" strokeWidth="1" />
-                    <line x1="0" y1="90" x2="500" y2="90" stroke="#f1f5f9" strokeWidth="1" />
-                    <line x1="0" y1="150" x2="500" y2="150" stroke="#f1f5f9" strokeWidth="1" />
+                    <line x1="0" y1="30" x2="700" y2="30" stroke="#f1f5f9" strokeWidth="1" />
+                    <line x1="0" y1="90" x2="700" y2="90" stroke="#f1f5f9" strokeWidth="1" />
+                    <line x1="0" y1="150" x2="700" y2="150" stroke="#f1f5f9" strokeWidth="1" />
 
                     {/* Kalkulasi Koordinat Line Chart */}
                     {(() => {
                       const maxVal = Math.max(...chartData.map(d => d.total), 1000);
                       const points = chartData.map((d, i) => {
-                        const x = chartData.length === 1 ? 250 : (i / (chartData.length - 1)) * 460 + 20;
-                        const y = 150 - (d.total / maxVal) * 120;
+                        const x = chartData.length === 1 ? 350 : (i / (chartData.length - 1)) * 640 + 30;
+                        const y = 150 - (d.total / maxVal) * 110;
                         return `${x},${y}`;
                       }).join(' ');
 
-                      const firstX = chartData.length === 1 ? 250 : 20;
-                      const lastX = chartData.length === 1 ? 250 : 480;
+                      const firstX = chartData.length === 1 ? 350 : 30;
+                      const lastX = chartData.length === 1 ? 350 : 670;
                       const areaPoints = `${firstX},160 ${points} ${lastX},160`;
 
                       return (
@@ -263,13 +275,24 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
                             points={points}
                           />
 
-                          {/* Titik Data (Dots) */}
+                          {/* Titik Data (Dots) & Label Angka di atas Titik */}
                           {chartData.map((d, i) => {
-                            const x = chartData.length === 1 ? 250 : (i / (chartData.length - 1)) * 460 + 20;
-                            const y = 150 - (d.total / maxVal) * 120;
+                            const x = chartData.length === 1 ? 350 : (i / (chartData.length - 1)) * 640 + 30;
+                            const y = 150 - (d.total / maxVal) * 110;
                             return (
                               <g key={i} className="group cursor-pointer">
                                 <circle cx={x} cy={y} r="4.5" fill="#ffffff" stroke="#059669" strokeWidth="2.5" />
+                                {/* Label Tanggal di Sumbu X langsung dalam SVG agar presisi dengan titik */}
+                                <text 
+                                  x={x} 
+                                  y="180" 
+                                  fill="#64748b" 
+                                  fontSize="10" 
+                                  fontWeight="600" 
+                                  textAnchor="middle"
+                                >
+                                  {d.tanggal}
+                                </text>
                               </g>
                             );
                           })}
@@ -277,13 +300,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
                       );
                     })()}
                   </svg>
-                </div>
-
-                {/* Sumbu X (Label Tanggal) */}
-                <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-2 px-2 overflow-x-auto">
-                  {chartData.map((d, i) => (
-                    <span key={i} className="truncate px-1">{d.tanggal}</span>
-                  ))}
                 </div>
               </div>
             )}
