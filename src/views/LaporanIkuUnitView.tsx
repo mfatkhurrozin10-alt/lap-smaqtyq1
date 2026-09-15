@@ -12,7 +12,14 @@ export default function LaporanIkuUnitView({}: any) {
   const [selectedMonth, setSelectedMonth] = useState(currentYearMonth);
   const [programRekapList, setProgramRekapList] = useState<any[]>([]);
 
-  // 1. Ambil daftar divisi/unit kerja
+  // Helper Warna Berdasarkan Realisasi
+  const getScoreTextColor = (scoreStr: string) => {
+    const score = parseFloat(scoreStr) || 0;
+    if (score > 66) return 'text-emerald-600';
+    if (score > 33) return 'text-amber-600';
+    return 'text-rose-600';
+  };
+
   const fetchDivisi = async () => {
     try {
       const { data, error } = await supabase.from('divisi').select('*');
@@ -30,12 +37,10 @@ export default function LaporanIkuUnitView({}: any) {
     fetchDivisi();
   }, []);
 
-  // 2. Ambil data program kegiatan, indikator IKU, dan log pengawasan
   const fetchRekapData = async () => {
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
-      // Ambil program kegiatan yang miliki divisi_id sesuai pilihan, beserta relasi ke indikator_iku
       const { data: progList, error: progErr } = await supabase
         .from('program_kegiatan')
         .select(`
@@ -54,7 +59,6 @@ export default function LaporanIkuUnitView({}: any) {
 
       if (progErr) throw progErr;
 
-      // Ambil seluruh data dari tabel divisi_log_pengawasan
       const { data: logs, error: logErr } = await supabase
         .from('divisi_log_pengawasan')
         .select('*');
@@ -62,18 +66,14 @@ export default function LaporanIkuUnitView({}: any) {
       if (logErr) throw logErr;
       const allLogs = logs || [];
 
-      // Petakan log ke masing-masing program kegiatan berdasarkan program_id
       const combined = (progList || []).map((prog: any) => {
-        // Filter log yang memiliki program_id yang sama dengan program ini
         const pLogs = allLogs.filter((l: any) => l.program_id === prog.id);
         
-        // Filter berdasarkan bulan yang dipilih (format 'YYYY-MM')
         const filteredLogs = pLogs.filter((l: any) => {
           if (!selectedMonth) return true;
           return l.waktu_input && l.waktu_input.startsWith(selectedMonth);
         });
 
-        // Hitung rata-rata skor persentase
         const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
         const avgSkor = filteredLogs.length > 0 
           ? (totalSkor / filteredLogs.length).toFixed(1)
@@ -99,6 +99,14 @@ export default function LaporanIkuUnitView({}: any) {
   }, [selectedDivisiId, selectedMonth]);
 
   const currentDivisiObj = divisiList.find((d: any) => d.id === selectedDivisiId);
+
+  // Format Nama Bulan Header Kolom Catatan
+  const formatMonthLabel = (ym: string) => {
+    if (!ym) return '';
+    const [y, m] = ym.split('-');
+    const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    return `${monthNames[parseInt(m) - 1] || m}-${y}`;
+  };
 
   if (loading && divisiList.length === 0) {
     return <div className="p-12 text-center text-slate-500 font-medium">Memuat Laporan IKU Unit...</div>;
@@ -151,28 +159,27 @@ export default function LaporanIkuUnitView({}: any) {
         </div>
       </div>
 
-      {/* TABEL REKAPITULASI */}
+      {/* TABEL REKAPITULASI SESUAI REFERENSI GAMBAR */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+          <table className="w-full text-left text-xs sm:text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-4 w-16">No</th>
-                <th className="px-6 py-4 w-72">Indikator (IKU)</th>
-                <th className="px-6 py-4">Target</th>
-                <th className="px-6 py-4">Realisasi</th>
-                <th className="px-6 py-4">Kegiatan</th>
-                <th className="px-6 py-4">Waktu</th>
-                <th className="px-6 py-4">Catatan ({selectedMonth})</th>
-                <th className="px-6 py-4 text-center">Aksi</th>
+                <th className="px-5 py-4 w-12 text-center">NO</th>
+                <th className="px-6 py-4 w-64">INDIKATOR (IKU)</th>
+                <th className="px-5 py-4 w-28">TARGET</th>
+                <th className="px-5 py-4 w-32">REALISASI YAYASAN</th>
+                <th className="px-6 py-4 w-44">KEGIATAN</th>
+                <th className="px-5 py-4 w-28">WAKTU</th>
+                <th className="px-6 py-4">CATATAN ({formatMonthLabel(selectedMonth)})</th>
+                <th className="px-5 py-4 w-16 text-center">AKSI</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {programRekapList.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-12 text-slate-400">
-                    Belum ada program kegiatan yang terdaftar pada unit <span className="font-bold text-slate-600">{currentDivisiObj?.nama_divisi}</span>. 
-                    <br/><span className="text-xs text-blue-500 font-semibold mt-1 inline-block">Pastikan program kegiatan di divisi ini sudah terhubung di database.</span>
+                    Belum ada program kegiatan yang terdaftar pada unit <span className="font-bold text-slate-600">{currentDivisiObj?.nama_divisi}</span>.
                   </td>
                 </tr>
               ) : (
@@ -182,46 +189,52 @@ export default function LaporanIkuUnitView({}: any) {
 
                   return (
                     <tr key={prog.id} className="hover:bg-slate-50/80 transition-colors align-top">
-                      <td className="px-6 py-5 font-mono text-slate-400 font-bold">{idx + 1}</td>
+                      <td className="px-5 py-5 font-mono text-slate-400 font-bold text-center">{idx + 1}</td>
                       
+                      {/* INDIKATOR IKU */}
                       <td className="px-6 py-5">
-                        <div className="space-y-1">
-                          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100 inline-block">
                             {iku?.kode_iku || 'IKU-UNIT'}
                           </span>
-                          <p className="text-xs font-bold text-slate-800 leading-snug pt-1">
+                          <p className="text-xs font-bold text-slate-800 leading-snug">
                             {iku?.judul_iku || prog.nama_program}
                           </p>
                         </div>
                       </td>
 
-                      <td className="px-6 py-5 font-semibold text-slate-700 text-xs whitespace-nowrap">
+                      {/* TARGET */}
+                      <td className="px-5 py-5 font-semibold text-slate-700 text-xs whitespace-nowrap">
                         {iku?.target_deskripsi || prog.target_pencapaian || '100%'}
                       </td>
 
-                      <td className="px-6 py-5 font-black text-purple-700 text-sm whitespace-nowrap">
+                      {/* REALISASI YAYASAN */}
+                      <td className={`px-5 py-5 font-black text-sm whitespace-nowrap ${getScoreTextColor(prog.realisasi_persen)}`}>
                         {prog.realisasi_persen}
                       </td>
 
-                      <td className="px-6 py-5 font-semibold text-slate-800 text-xs whitespace-nowrap">
+                      {/* KEGIATAN */}
+                      <td className="px-6 py-5 font-bold text-slate-800 text-xs">
                         {prog.nama_program}
                       </td>
 
-                      <td className="px-6 py-5 text-slate-600 text-xs whitespace-nowrap">
+                      {/* WAKTU */}
+                      <td className="px-5 py-5 text-slate-600 text-xs whitespace-nowrap font-medium">
                         {prog.timeframe || 'Harian'}
                       </td>
 
-                      <td className="px-6 py-5 text-slate-600 text-xs max-w-md leading-relaxed">
+                      {/* CATATAN BULANAN */}
+                      <td className="px-6 py-5 text-slate-600 text-xs leading-relaxed">
                         {logs.length === 0 ? (
-                          <span className="text-slate-400 italic">(Belum ada catatan pengawasan di bulan ini)</span>
+                          <span className="text-slate-400 italic">(Belum ada catatan)</span>
                         ) : (
                           <div className="space-y-2">
                             {logs.map((log: any, lIdx: number) => (
-                              <div key={lIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-start gap-2">
+                              <div key={lIdx} className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 flex items-start gap-2 shadow-2xs">
                                 <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0"></span>
                                 <div>
                                   <span className="font-semibold text-slate-700 mr-1">[{log.mapel_kelas || log.guru_target || 'Pengawasan'}]:</span>
-                                  <span>{log.catatan_temuan || 'Sesuai standar'}</span>
+                                  <span className="text-slate-600">{log.catatan_temuan || 'Sesuai standar'}</span>
                                 </div>
                               </div>
                             ))}
@@ -229,13 +242,14 @@ export default function LaporanIkuUnitView({}: any) {
                         )}
                       </td>
 
-                      <td className="px-6 py-5 text-center">
+                      {/* AKSI */}
+                      <td className="px-5 py-5 text-center">
                         <button 
-                          onClick={() => alert(`Detail Kegiatan: ${prog.nama_program}`)}
-                          className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors"
+                          onClick={() => alert(`Edit / Evaluasi Kegiatan: ${prog.nama_program}`)}
+                          className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors shadow-2xs"
                           title="Edit / Catatan Evaluasi"
                         >
-                          <Edit3 size={16} />
+                          <Edit3 size={15} />
                         </button>
                       </td>
                     </tr>
