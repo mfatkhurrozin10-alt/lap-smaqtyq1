@@ -1,7 +1,7 @@
 // src/views/DivisiKesiswaanView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckSquare, History, BarChart2, Settings, RefreshCw, Printer } from 'lucide-react';
 
 export default function DivisiKesiswaanView({ showNotification }: any) {
   const [loading, setLoading] = useState(true);
@@ -13,11 +13,10 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
   const [programList, setProgramList] = useState<any[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>('form');
-  const [timeframe, setTimeframe] = useState('Harian');
+  const [timeframe] = useState('Harian');
 
   const [guruList, setGuruList] = useState<any[]>([]);
   const [kelasList, setKelasList] = useState<any[]>([]);
-  const [mapelList, setMapelList] = useState<any[]>([]);
 
   const [formInput, setFormInput] = useState({
     petugas_pj: '',
@@ -29,23 +28,17 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     catatan: ''
   });
 
-  const [editingLogId, setEditingLogId] = useState<string | null>(null);
-  const [selectedDetailLog, setSelectedDetailLog] = useState<any | null>(null);
+  const [editingLogId] = useState<string | null>(null);
   const [kategoriList, setKategoriList] = useState<any[]>([]);
   const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>({});
   const [riwayatList, setRiwayatList] = useState<any[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
+  const [currentPage] = useState(1);
+  const [selectedMonthFilter] = useState('all');
   const itemsPerPage = 10;
 
-  const [formConfig, setFormConfig] = useState<any>({
+  const [formConfig] = useState<any>({
     show_petugas: true, show_guru: true, show_mapel: true, show_kelas: true, show_jam: true, show_santri_absen: true
   });
-
-  const [newKategoriNama, setNewKategoriNama] = useState('');
-  const [newKategoriTipe, setNewKategoriTipe] = useState('Negatif (Dicentang jika bermasalah)');
-  const [inputButirBaru, setInputButirBaru] = useState<{ [key: string]: string }>({});
-  const [showInputButir, setShowInputButir] = useState<{ [key: string]: boolean }>({});
 
   const getScoreColorClass = (score: number) => {
     if (score > 66) return 'text-emerald-600 bg-emerald-50 border-emerald-200';
@@ -76,8 +69,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
       }
       const { data: dbGuru } = await supabase.from('guru').select('id, nama');
       if (dbGuru) setGuruList(dbGuru);
-      const { data: dbMapel } = await supabase.from('mapel').select('id, nama_mapel, kode');
-      if (dbMapel) setMapelList(dbMapel);
       const { data: dbKelas } = await supabase.from('guru_mapel').select('kelas');
       if (dbKelas && dbKelas.length > 0) {
         setKelasList(Array.from(new Set(dbKelas.map((k: any) => k.kelas))).filter(Boolean));
@@ -92,13 +83,10 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
   const fetchProgramDetail = async () => {
     if (!selectedProgramId) return;
     try {
-      const { data: cfgList } = await supabase.from('divisi_form_config').select('*').eq('program_id', selectedProgramId);
-      if (cfgList && cfgList.length > 0) setFormConfig(cfgList[0]);
       const { data: kat } = await supabase.from('divisi_kategori_indikator').select('*, divisi_butir_ceklis(*)').eq('program_id', selectedProgramId).order('urutan');
       setKategoriList(kat || []);
       const { data: riw } = await supabase.from('divisi_log_pengawasan').select('*').eq('program_id', selectedProgramId).order('waktu_input', { ascending: false });
       setRiwayatList(riw || []);
-      setCurrentPage(1);
     } catch (err) { console.error(err); }
   };
 
@@ -131,7 +119,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
       if (editingLogId) {
         await supabase.from('divisi_log_pengawasan').update(payload).eq('id', editingLogId);
         showNotification('Laporan Kesiswaan diperbarui!', 'success');
-        setEditingLogId(null);
       } else {
         await supabase.from('divisi_log_pengawasan').insert([payload]);
         showNotification('Laporan Kesiswaan disimpan!', 'success');
@@ -145,9 +132,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
   if (loading) return <div className="p-12 text-center text-slate-500 font-medium">Memuat data Divisi Kesiswaan...</div>;
 
   const filteredPrograms = programList.filter((p: any) => !p.timeframe || p.timeframe.toLowerCase() === timeframe.toLowerCase());
-  const selectedProgramObj = programList.find((p: any) => p.id === selectedProgramId);
   const filteredRiwayat = riwayatList.filter((item: any) => selectedMonthFilter === 'all' || new Date(item.waktu_input).toISOString().slice(0, 7) === selectedMonthFilter);
-  const totalPages = Math.ceil(filteredRiwayat.length / itemsPerPage) || 1;
   const currentData = filteredRiwayat.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const avgRealisasi = riwayatList.length > 0 ? (riwayatList.reduce((acc, curr) => acc + Number(curr.skor_persen), 0) / riwayatList.length) : 0;
 
@@ -159,11 +144,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
           <p className="text-sm text-slate-500 mt-0.5">Koordinator: <span className="font-semibold text-slate-700">{divisiData?.nama_koordinator}</span></p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            {['Harian', 'Mingguan', 'Bulanan', 'Tahunan'].map(tf => (
-              <button key={tf} onClick={() => setTimeframe(tf)} className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${timeframe === tf ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{tf}</button>
-            ))}
-          </div>
           <select value={selectedProgramId} onChange={(e) => setSelectedProgramId(e.target.value)} className="py-2 px-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none shadow-sm cursor-pointer">
             {filteredPrograms.map((p: any) => (<option key={p.id} value={p.id}>{p.nama_program}</option>))}
           </select>

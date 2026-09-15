@@ -1,7 +1,6 @@
 // src/views/DivisiBahasaView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { CheckSquare, History, BarChart2, Settings, RefreshCw, Printer } from 'lucide-react';
 
 export default function DivisiBahasaView({ showNotification }: any) {
   const [loading, setLoading] = useState(true);
@@ -9,7 +8,7 @@ export default function DivisiBahasaView({ showNotification }: any) {
   const [programList, setProgramList] = useState<any[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>('form');
-  const [timeframe, setTimeframe] = useState('Harian');
+  const [timeframe] = useState('Harian');
   const [formInput, setFormInput] = useState({ petugas_pj: '', guru_target: '', catatan: '' });
   const [kategoriList, setKategoriList] = useState<any[]>([]);
   const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>({});
