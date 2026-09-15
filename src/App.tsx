@@ -9,9 +9,11 @@ import KelolaKehadiranAdminView from './views/KelolaKehadiranAdminView';
 import KelolaTabunganAdminView from './views/KelolaTabunganAdminView';
 import KelolaPoinAdminView from './views/KelolaPoinAdminView';
 import KelolaDivisiView from './views/KelolaDivisiView';
+import DivisiKurikulumView from './views/DivisiKurikulumView';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('kelola-divisi');
+  // Kita set default langsung ke divisi-kurikulum agar langsung terlihat
+  const [activeTab, setActiveTab] = useState('divisi-kurikulum');
   const [notification, setNotification] = useState({ message: '', type: '' });
 
   const showNotification = (message: string, type: string) => {
@@ -52,18 +54,33 @@ export default function App() {
       case 'kelola-divisi':
         return <KelolaDivisiView showNotification={showNotification} />;
 
+      // ROUTE UTAMA DIVISI KURIKULUM YANG SEBELUMNYA TERLEWAT
+      case 'divisi-kurikulum':
+        return <DivisiKurikulumView showNotification={showNotification} />;
+
       case 'laporan-iku':
+      case 'divisi-kesiswaan':
+      case 'divisi-humas':
+      case 'divisi-sarpras':
+      case 'divisi-bahasa':
+      case 'divisi-tata-usaha':
         return (
           <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-100 h-full flex items-center justify-center">
             <div className="text-center">
               <h2 className="text-xl font-bold text-slate-800 uppercase tracking-wide">Sedang Dalam Pengembangan</h2>
-              <p className="text-slate-500 mt-2">Menu ini akan dirakit pada tahap selanjutnya.</p>
+              <p className="text-slate-500 mt-2">Menu divisi ini akan segera menyusul dengan sistem yang serupa.</p>
             </div>
           </div>
         );
 
       default:
-        return null;
+        return (
+          <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-100 h-full flex items-center justify-center">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-slate-800">Halaman Tidak Ditemukan</h2>
+            </div>
+          </div>
+        );
     }
   };
 
