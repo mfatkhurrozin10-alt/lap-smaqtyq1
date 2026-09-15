@@ -63,7 +63,7 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5z"></path></svg>
           </div>
           <div className="flex flex-col text-left overflow-hidden">
-            <h1 className="font-bold text-white text-sm tracking-wide truncate">SMP QTYQ 1 LILBANAT</h1>
+            <h1 className="font-bold text-white text-sm tracking-wide truncate">SMA QT Yanbuul Quran 1</h1>
             <p className="text-[10px] text-blue-300 font-semibold uppercase tracking-wider truncate">Ledger Akademik</p>
           </div>
         </div>

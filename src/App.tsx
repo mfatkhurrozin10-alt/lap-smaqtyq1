@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import DashboardLayout from './components/DashboardLayout';
 import { Notification } from './components/UIComponents';
+import KelolaDivisiView from './views/KelolaDivisiView';
 
 // Mengimpor View dari file lama Anda
 import KelolaNilaiView from './views/KelolaNilaiView';
