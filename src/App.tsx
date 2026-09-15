@@ -10,9 +10,9 @@ import KelolaTabunganAdminView from './views/KelolaTabunganAdminView';
 import KelolaPoinAdminView from './views/KelolaPoinAdminView';
 import KelolaDivisiView from './views/KelolaDivisiView';
 import DivisiKurikulumView from './views/DivisiKurikulumView';
+import LaporanIkuUnitView from './views/LaporanIkuUnitView'; // <-- 1. Import view Laporan IKU Unit
 
 export default function App() {
-  // Kita set default langsung ke divisi-kurikulum agar langsung terlihat
   const [activeTab, setActiveTab] = useState('divisi-kurikulum');
   const [notification, setNotification] = useState({ message: '', type: '' });
 
@@ -39,6 +39,10 @@ export default function App() {
           </div>
         );
       
+      // 2. Hubungkan 'laporan-iku' ke komponen LaporanIkuUnitView
+      case 'laporan-iku':
+        return <LaporanIkuUnitView showNotification={showNotification} />;
+
       case 'rekap-penilaian':
         return <KelolaNilaiView user={currentUser} showNotification={showNotification} />;
       
@@ -54,11 +58,9 @@ export default function App() {
       case 'kelola-divisi':
         return <KelolaDivisiView showNotification={showNotification} />;
 
-      // ROUTE UTAMA DIVISI KURIKULUM YANG SEBELUMNYA TERLEWAT
       case 'divisi-kurikulum':
         return <DivisiKurikulumView showNotification={showNotification} />;
 
-      case 'laporan-iku':
       case 'divisi-kesiswaan':
       case 'divisi-humas':
       case 'divisi-sarpras':
