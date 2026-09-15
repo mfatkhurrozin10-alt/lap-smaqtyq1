@@ -10,50 +10,28 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     nama_koordinator: 'Ummi Mukhoyyaroh, M.Pd.'
   });
   
-  // Data Program default agar tidak kosong jika Supabase belum diisi
-  const [programList, setProgramList] = useState<any[]>([
-    { id: 'prog-1', nama_program: 'Monitoring KBM' }
-  ]);
-  const [selectedProgramId, setSelectedProgramId] = useState<string>('prog-1');
+  const [programList, setProgramList] = useState<any[]>([]);
+  const [selectedProgramId, setSelectedProgramId] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>('form');
   
+  // Timeframe Filter: Harian, Mingguan, Bulanan, Tahunan
   const [timeframe, setTimeframe] = useState('Harian');
+
+  // State Pilihan Dropdown Kelas & Guru
+  const [kelasList, setKelasList] = useState<any[]>([]);
+  const [guruList, setGuruList] = useState<any[]>([]);
 
   const [formInput, setFormInput] = useState({
     petugas_pj: 'Ummi Mukhoyyaroh, M.Pd.',
     guru_target: '',
     mapel_kelas: '',
+    kelas_dipilih: '',
     jam_pembelajaran: '1-2',
     santri_absen: 'Nihil',
     catatan: ''
   });
 
-  // Data Kategori & Indikator Ceklis Default (Persis seperti gambar Anda)
-  const [kategoriList, setKategoriList] = useState<any[]>([
-    {
-      id: 'kat-1',
-      nama_kategori: 'Kebersihan',
-      tipe_kategori: 'Negatif (Temuan/Pelanggaran)',
-      divisi_butir_ceklis: [
-        { id: 'b-1', nama_butir: 'Papan tulis belum bersih' },
-        { id: 'b-2', nama_butir: 'Ada sarang laba-laba' },
-        { id: 'b-3', nama_butir: 'Jendela/Kaca kotor' },
-        { id: 'b-4', nama_butir: 'Meja/kursi kotor' },
-        { id: 'b-5', nama_butir: 'Lantai kotor' }
-      ]
-    },
-    {
-      id: 'kat-2',
-      nama_kategori: 'Kerapian',
-      tipe_kategori: 'Negatif (Temuan/Pelanggaran)',
-      divisi_butir_ceklis: [
-        { id: 'b-6', nama_butir: 'Meja/kursi siswa tidak rapi' },
-        { id: 'b-7', nama_butir: 'Buku siswa tidak rapi' },
-        { id: 'b-8', nama_butir: 'Atribut siswa tidak lengkap/rapi' }
-      ]
-    }
-  ]);
-
+  const [kategoriList, setKategoriList] = useState<any[]>([]);
   const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>({});
   const [riwayatList, setRiwayatList] = useState<any[]>([]);
   const [formConfig, setFormConfig] = useState<any>({
@@ -77,18 +55,26 @@ export default function DivisiKurikulumView({ showNotification }: any) {
 
       if (kurikulumDiv) {
         setDivisiData(kurikulumDiv);
-        const { data: prog } = await supabase.from('program_kegiatan').select('*').eq('divisi_id', kurikulumDiv.id);
+        // Ambil program kegiatan beserta data IKU terkaitnya
+        const { data: prog } = await supabase.from('program_kegiatan').select('*, indikator_iku(kode_iku, judul_iku)').eq('divisi_id', kurikulumDiv.id);
         if (prog && prog.length > 0) {
           setProgramList(prog);
-          setSelectedProgramId(prog[0].id);
-          
-          // Ambil Kategori dari Supabase jika ada
-          const { data: kat } = await supabase.from('divisi_kategori_indikator').select('*, divisi_butir_ceklis(*)').eq('program_id', prog[0].id).order('urutan');
-          if (kat && kat.length > 0) {
-            setKategoriList(kat);
-          }
+          // Set program pertama yang sesuai timeframe atau default ke index 0
+          const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
+          const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
+          setSelectedProgramId(targetProg.id);
         }
       }
+
+      setKelasList(['Kelas 7-A', 'Kelas 7-B', 'Kelas 8-A', 'Kelas 8-B', 'Kelas 9-A', 'Kelas 9-B']);
+      setGuruList([
+        'Ummi Mukhoyyaroh, M.Pd.',
+        'Ella Setyana, S.Pd.',
+        'Alfina Lailis Sa`adah, S.Pd.',
+        'Mahda Laila Arnumukti, S.Kom',
+        'Ani Nur Kholifah, S.Pd.'
+      ]);
+
     } catch (err) {
       console.error(err);
     } finally {
@@ -98,7 +84,30 @@ export default function DivisiKurikulumView({ showNotification }: any) {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [timeframe]);
+
+  // Ambil detail program (kategori, butir ceklis, dan log riwayat) saat program dipilih
+  const fetchProgramDetail = async () => {
+    if (!selectedProgramId) return;
+    try {
+      const { data: cfgList } = await supabase.from('divisi_form_config').select('*').eq('program_id', selectedProgramId);
+      if (cfgList && cfgList.length > 0) {
+        setFormConfig(cfgList[0]);
+      }
+
+      const { data: kat } = await supabase.from('divisi_kategori_indikator').select('*, divisi_butir_ceklis(*)').eq('program_id', selectedProgramId).order('urutan');
+      setKategoriList(kat || []);
+
+      const { data: riw } = await supabase.from('divisi_log_pengawasan').select('*').eq('program_id', selectedProgramId).order('waktu_input', { ascending: false });
+      setRiwayatList(riw || []);
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchProgramDetail();
+  }, [selectedProgramId]);
 
   const handleSubmitCeklis = async (e: any) => {
     e.preventDefault();
@@ -114,83 +123,89 @@ export default function DivisiKurikulumView({ showNotification }: any) {
 
       const skor = totalButir > 0 ? Number(((1 - (temuanAktif / totalButir)) * 100).toFixed(1)) : 100;
 
-      const newLog = {
-        id: Date.now().toString(),
+      const payload = {
+        program_id: selectedProgramId,
         waktu_input: new Date().toISOString(),
         petugas_pj: formInput.petugas_pj,
-        guru_target: formInput.guru_target || 'Ustadzah Pengampu',
-        mapel_kelas: formInput.mapel_kelas || 'Kelas 7-A',
+        guru_target: formInput.guru_target,
+        mapel_kelas: `${formInput.mapel_kelas} (${formInput.kelas_dipilih})`,
+        jam_pembelajaran: formInput.jam_pembelajaran,
+        santri_absen: formInput.santri_absen,
+        catatan_temuan: formInput.catatan,
         skor_persen: skor,
-        catatan_temuan: formInput.catatan || 'Sesuai standar'
+        detail_ceklis: checkedItems
       };
 
-      setRiwayatList([newLog, ...riwayatList]);
-      if (showNotification) showNotification('Form ceklis berhasil disimpan!', 'success');
+      const { error } = await supabase.from('divisi_log_pengawasan').insert([payload]);
+      if (error) throw error;
+
+      if (showNotification) showNotification('Form ceklis berhasil disimpan ke database!', 'success');
       setCheckedItems({});
-      setFormInput({ ...formInput, guru_target: '', mapel_kelas: '', catatan: '' });
+      setFormInput({ ...formInput, guru_target: '', mapel_kelas: '', kelas_dipilih: '', catatan: '' });
+      fetchProgramDetail();
       setActiveSubTab('riwayat');
     } catch (err: any) {
       if (showNotification) showNotification(err.message, 'error');
     }
   };
 
-  const handleAddKategori = (e: any) => {
+  const handleAddKategori = async (e: any) => {
     e.preventDefault();
-    if (!newKategoriNama) return;
-    const newKat = {
-      id: 'kat-' + Date.now(),
-      nama_kategori: newKategoriNama,
-      tipe_kategori: newKategoriTipe,
-      divisi_butir_ceklis: []
-    };
-    setKategoriList([...kategoriList, newKat]);
-    setNewKategoriNama('');
-    if (showNotification) showNotification('Kategori baru ditambahkan', 'success');
+    if (!newKategoriNama || !selectedProgramId) return;
+    try {
+      const { error } = await supabase.from('divisi_kategori_indikator').insert([{
+        program_id: selectedProgramId,
+        nama_kategori: newKategoriNama,
+        tipe_kategori: newKategoriTipe
+      }]);
+      if (error) throw error;
+      setNewKategoriNama('');
+      if (showNotification) showNotification('Kategori baru ditambahkan', 'success');
+      fetchProgramDetail();
+    } catch (err: any) {
+      if (showNotification) showNotification(err.message, 'error');
+    }
   };
 
-  const handleAddButir = (kategoriId: string) => {
+  const handleAddButir = async (kategoriId: string) => {
     const namaButir = inputButirBaru[kategoriId];
     if (!namaButir) return;
-    
-    const updated = kategoriList.map(kat => {
-      if (kat.id === kategoriId) {
-        return {
-          ...kat,
-          divisi_butir_ceklis: [...(kat.divisi_butir_ceklis || []), { id: 'b-' + Date.now(), nama_butir: namaButir }]
-        };
-      }
-      return kat;
-    });
-
-    setKategoriList(updated);
-    setInputButirBaru({ ...inputButirBaru, [kategoriId]: '' });
-    if (showNotification) showNotification('Butir indikator ditambahkan', 'success');
+    try {
+      const { error } = await supabase.from('divisi_butir_ceklis').insert([{
+        kategori_id: kategoriId,
+        nama_butir: namaButir
+      }]);
+      if (error) throw error;
+      setInputButirBaru({ ...inputButirBaru, [kategoriId]: '' });
+      if (showNotification) showNotification('Butir indikator ditambahkan', 'success');
+      fetchProgramDetail();
+    } catch (err: any) {
+      if (showNotification) showNotification(err.message, 'error');
+    }
   };
 
-  const handleDeleteButir = (kategoriId: string, butirId: string) => {
-    const updated = kategoriList.map(kat => {
-      if (kat.id === kategoriId) {
-        return {
-          ...kat,
-          divisi_butir_ceklis: kat.divisi_butir_ceklis.filter((b: any) => b.id !== butirId)
-        };
-      }
-      return kat;
-    });
-    setKategoriList(updated);
-    if (showNotification) showNotification('Butir dihapus', 'success');
+  const handleDeleteButir = async (butirId: string) => {
+    try {
+      await supabase.from('divisi_butir_ceklis').delete().eq('id', butirId);
+      if (showNotification) showNotification('Butir dihapus', 'success');
+      fetchProgramDetail();
+    } catch (err: any) {
+      if (showNotification) showNotification(err.message, 'error');
+    }
   };
 
   if (loading) {
     return <div className="p-12 text-center text-slate-500 font-medium">Memuat data Divisi Kurikulum...</div>;
   }
 
-  const selectedProgramObj = programList.find((p: any) => p.id === selectedProgramId) || programList[0];
+  // Filter program berdasarkan timeframe yang dipilih di atas
+  const filteredProgramsByTime = programList.filter((p: any) => !p.timeframe || p.timeframe.toLowerCase() === timeframe.toLowerCase());
+  const selectedProgramObj = programList.find((p: any) => p.id === selectedProgramId);
 
   return (
     <div className="space-y-6 w-full text-left pb-12">
       
-      {/* HEADER DIVISI */}
+      {/* HEADER DIVISI & FILTER TIMEFRAME */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Divisi {divisiData?.nama_divisi || 'Kurikulum'}</h2>
@@ -198,6 +213,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Filter Waktu: Harian, Mingguan, Bulanan, Tahunan */}
           <div className="flex bg-slate-100 p-1 rounded-xl">
             {['Harian', 'Mingguan', 'Bulanan', 'Tahunan'].map(tf => (
               <button
@@ -210,14 +226,19 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             ))}
           </div>
 
+          {/* DROPDOWN PILIHAN PROGRAM BERDASARKAN TIMEFRAME */}
           <select
             value={selectedProgramId}
             onChange={(e) => setSelectedProgramId(e.target.value)}
             className="py-2 px-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none shadow-sm"
           >
-            {programList.map((p: any) => (
-              <option key={p.id} value={p.id}>{p.nama_program}</option>
-            ))}
+            {filteredProgramsByTime.length === 0 ? (
+              <option value="">Tidak ada program {timeframe}</option>
+            ) : (
+              filteredProgramsByTime.map((p: any) => (
+                <option key={p.id} value={p.id}>{p.nama_program}</option>
+              ))
+            )}
           </select>
           
           <button onClick={fetchData} className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors" title="Refresh Data">
@@ -226,7 +247,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
       </div>
 
-      {/* SUB-MENU TAB NAVIGASI */}
+      {/* SUB-MENU NAVIGASI TAB & BADGE INDIKATOR IKU TERKAIT */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         <button
           onClick={() => setActiveSubTab('form')}
@@ -253,9 +274,11 @@ export default function DivisiKurikulumView({ showNotification }: any) {
           <Settings size={16} /> Customize Form
         </button>
 
-        {selectedProgramObj && (
-          <div className="ml-auto px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl text-xs font-bold text-blue-700">
-            Program Aktif: {selectedProgramObj.nama_program}
+        {/* KETERANGAN INDIKATOR IKU TERKAIT (MUNCUL OTOMATIS) */}
+        {selectedProgramObj?.indikator_iku && (
+          <div className="ml-auto px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm truncate max-w-md">
+            <span className="text-blue-600 mr-1">{selectedProgramObj.indikator_iku.kode_iku}:</span> 
+            {selectedProgramObj.indikator_iku.judul_iku}
           </div>
         )}
       </div>
@@ -275,36 +298,55 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                   <input type="text" value={formInput.petugas_pj} onChange={e => setFormInput({...formInput, petugas_pj: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" required />
                 </div>
               )}
+
               {formConfig.show_guru && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadzah / Guru Pengampu:</label>
-                  <input type="text" placeholder="Ketik atau pilih nama guru..." value={formInput.guru_target} onChange={e => setFormInput({...formInput, guru_target: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" required />
-                </div>
-              )}
-              {formConfig.show_mapel && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mata Pelajaran:</label>
-                  <input type="text" placeholder="Ketik atau pilih mapel..." value={formInput.mapel_kelas} onChange={e => setFormInput({...formInput, mapel_kelas: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
-                </div>
-              )}
-              {formConfig.show_kelas && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kelas:</label>
-                  <select value={formInput.mapel_kelas} onChange={e => setFormInput({...formInput, mapel_kelas: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none">
-                    <option value="">Pilih Kelas</option>
-                    <option value="Kelas 7-A">Kelas 7-A</option>
-                    <option value="Kelas 7-B">Kelas 7-B</option>
-                    <option value="Kelas 8-A">Kelas 8-A</option>
-                    <option value="Kelas 9-A">Kelas 9-A</option>
+                  <select 
+                    value={formInput.guru_target} 
+                    onChange={e => setFormInput({...formInput, guru_target: e.target.value})} 
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none" 
+                    required
+                  >
+                    <option value="">-- Pilih Guru Pengampu --</option>
+                    {guruList.map((guru, idx) => (
+                      <option key={idx} value={guru}>{guru}</option>
+                    ))}
                   </select>
                 </div>
               )}
+
+              {formConfig.show_mapel && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mata Pelajaran:</label>
+                  <input type="text" placeholder="Ketik mapel (misal: Fiqih)..." value={formInput.mapel_kelas} onChange={e => setFormInput({...formInput, mapel_kelas: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+                </div>
+              )}
+
+              {formConfig.show_kelas && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kelas:</label>
+                  <select 
+                    value={formInput.kelas_dipilih} 
+                    onChange={e => setFormInput({...formInput, kelas_dipilih: e.target.value})} 
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none"
+                    required
+                  >
+                    <option value="">-- Pilih Kelas --</option>
+                    {kelasList.map((kls, idx) => (
+                      <option key={idx} value={kls}>{kls}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {formConfig.show_jam && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Jam Pembelajaran:</label>
                   <input type="text" value={formInput.jam_pembelajaran} onChange={e => setFormInput({...formInput, jam_pembelajaran: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
                 </div>
               )}
+
               {formConfig.show_santri_absen && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Santri Tidak Hadir:</label>
@@ -315,31 +357,37 @@ export default function DivisiKurikulumView({ showNotification }: any) {
           </div>
 
           <div className="space-y-4">
-            {kategoriList.map((kat: any) => (
-              <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                    {kat.nama_kategori} <span className="text-xs text-slate-400 font-normal">({kat.divisi_butir_ceklis?.length || 0} Indikator)</span>
-                  </h4>
-                  <span className="text-xs font-semibold px-3 py-1 bg-rose-50 text-rose-600 rounded-full border border-rose-100">{kat.tipe_kategori}</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {kat.divisi_butir_ceklis?.map((butir: any) => (
-                    <label key={butir.id} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 rounded-xl cursor-pointer transition-colors">
-                      <input 
-                        type="checkbox" 
-                        checked={!!checkedItems[butir.id]} 
-                        onChange={e => setCheckedItems({...checkedItems, [butir.id]: e.target.checked})}
-                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
-                      />
-                      <span className="text-sm font-medium text-slate-700">{butir.nama_butir}</span>
-                    </label>
-                  ))}
-                </div>
+            {kategoriList.length === 0 ? (
+              <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400">
+                Belum ada butir ceklis untuk program ini. Atur melalui menu <span className="font-bold text-slate-600">Customize Form</span>.
               </div>
-            ))}
+            ) : (
+              kategoriList.map((kat: any) => (
+                <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                      {kat.nama_kategori} <span className="text-xs text-slate-400 font-normal">({kat.divisi_butir_ceklis?.length || 0} Indikator)</span>
+                    </h4>
+                    <span className="text-xs font-semibold px-3 py-1 bg-rose-50 text-rose-600 rounded-full border border-rose-100">{kat.tipe_kategori}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {kat.divisi_butir_ceklis?.map((butir: any) => (
+                      <label key={butir.id} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 rounded-xl cursor-pointer transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={!!checkedItems[butir.id]} 
+                          onChange={e => setCheckedItems({...checkedItems, [butir.id]: e.target.checked})}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
+                        />
+                        <span className="text-sm font-medium text-slate-700">{butir.nama_butir}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -387,7 +435,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               <tbody className="divide-y divide-slate-100">
                 {riwayatList.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-12 text-slate-400">Belum ada riwayat pengawasan. Silakan isi form ceklis terlebih dahulu.</td>
+                    <td colSpan={7} className="text-center py-12 text-slate-400">Belum ada riwayat pengawasan untuk program ini.</td>
                   </tr>
                 ) : (
                   riwayatList.map((item: any, idx: number) => (
@@ -436,7 +484,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-800">Pengaturan Kolom Informasi Pengawasan</h3>
-            <p className="text-xs text-slate-500">Centang modul yang ingin ditampilkan pada form kegiatan ini.</p>
+            <p className="text-xs text-slate-500">Centang modul yang ingin ditampilkan pada form kegiatan program ini.</p>
             
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-2">
               <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
@@ -466,7 +514,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             <form onSubmit={handleAddKategori} className="flex flex-col sm:flex-row gap-3">
               <input 
                 type="text" 
-                placeholder="Nama Kategori Baru (misal: Kebersihan, Ketertiban)..." 
+                placeholder="Nama Kategori Baru (misal: Kebersihan)..." 
                 value={newKategoriNama} 
                 onChange={e => setNewKategoriNama(e.target.value)} 
                 className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none"
@@ -494,7 +542,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                   {kat.divisi_butir_ceklis?.map((butir: any) => (
                     <div key={butir.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200/50">
                       <span className="text-sm text-slate-700">{butir.nama_butir}</span>
-                      <button onClick={() => handleDeleteButir(kat.id, butir.id)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"><Trash2 size={16} /></button>
+                      <button onClick={() => handleDeleteButir(butir.id)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"><Trash2 size={16} /></button>
                     </div>
                   ))}
                 </div>
