@@ -53,7 +53,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     show_santri_absen: true
   });
 
-  // State untuk Kolom Kustom Tambahan
+  // State untuk Kolom Kustom Tambahan (Tambah & Edit)
   const [customFieldsList, setCustomFieldsList] = useState<any[]>([]);
   const [showAddCustomModal, setShowAddCustomModal] = useState(false);
   const [editingCustomField, setEditingCustomField] = useState<any | null>(null);
@@ -181,7 +181,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
         catatan_temuan: formInput.catatan,
         skor_persen: currentSkorPersen,
         detail_ceklis: checkedItems,
-        custom_field_values: customFormValues // Menyimpan nilai kolom kustom
+        custom_field_values: customFormValues
       };
 
       if (editingLogId) {
@@ -233,7 +233,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     }
   };
 
-  // Handler Manajemen Kolom Kustom (Tambah & Edit)
+  // Handler Manajemen Kolom Kustom (Tambah, Edit, dan Hapus)
   const handleSaveCustomField = async (e: any) => {
     e.preventDefault();
     if (!customFieldInput.label_kolom || !selectedProgramId) return;
@@ -989,14 +989,14 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
             </div>
           </div>
 
-          {/* MANAJEMEN KOLOM KUSTOM DINAMIS (TAMBAH & EDIT) */}
+          {/* MANAJEMEN KOLOM KUSTOM DINAMIS (TAMBAH, EDIT, & HAPUS) */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                   <Layers size={18} className="text-blue-600" /> Kolom Input Kustom Tambahan
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Buat kolom input tambahan sendiri khusus untuk program kegiatan ini</p>
+                <p className="text-xs text-slate-500 mt-0.5">Buat, ubah, atau hapus kolom input tambahan khusus untuk program kegiatan ini</p>
               </div>
               <button
                 type="button"
