@@ -80,12 +80,14 @@ export default function LaporanIkuUnitView({}: any) {
         const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
         const avgSkor = filteredLogs.length > 0 ? (totalSkor / filteredLogs.length).toFixed(1) : '0.0';
 
+        // Ambil target secara akurat dari program kegiatan, jika kosong ambil dari master indikator, jika masih kosong gunakan '-'
+        const targetValue = prog.target_pencapaian || prog.target || prog.target_deskripsi || matchedIku?.target_deskripsi || '-';
+
         rawRows.push({
           iku_id: ikuId || 'unknown',
           kode_iku: matchedIku?.kode_iku || prog.kode_iku || 'IKU-UNIT',
           judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.judul_iku || prog.nama_program,
-          // Target diambil murni dari master/tabel program kegiatan (target_pencapaian)
-          target: prog.target_pencapaian || '100%',
+          target: targetValue,
           realisasi: `${avgSkor}%`,
           yayasan: '',
           kegiatan: prog.nama_program || '-',
@@ -97,7 +99,7 @@ export default function LaporanIkuUnitView({}: any) {
       // 5. Urutkan berdasarkan IKU
       rawRows.sort((a, b) => a.kode_iku.localeCompare(b.kode_iku));
 
-      // 6. Hitung rowspan HANYA untuk kolom NO dan INDIKATOR (Target dibiarkan terpisah per baris kegiatan)
+      // 6. Hitung rowspan HANYA untuk kolom NO dan INDIKATOR
       let finalRows: any[] = [];
       let groupCounter = 1;
       let i = 0;
@@ -250,7 +252,7 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
 
-                      {/* TARGET (Sesuai target program kegiatan, tidak di-merge) */}
+                      {/* TARGET (Sesuai target program kegiatan) */}
                       <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 whitespace-nowrap">
                         {row.target}
                       </td>
