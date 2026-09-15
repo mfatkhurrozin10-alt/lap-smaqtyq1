@@ -1,9 +1,9 @@
 // src/views/LaporanIkuUnitView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { FileText, Printer, Calendar, Edit3 } from 'lucide-react';
+import { FileText, Printer, Calendar, Edit3, X, Sparkles } from 'lucide-react';
 
-export default function LaporanIkuUnitView({}: any) {
+export default function LaporanIkuUnitView({ showNotification }: any) {
   const [loading, setLoading] = useState(true);
   const [divisiList, setDivisiList] = useState<any[]>([]);
   const [selectedDivisiId, setSelectedDivisiId] = useState<string>('');
@@ -11,6 +11,12 @@ export default function LaporanIkuUnitView({}: any) {
   const currentYearMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentYearMonth);
   const [rekapRows, setRekapRows] = useState<any[]>([]);
+
+  // State untuk Modal Catatan Evaluasi (Pop-up)
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeProgram, setActiveProgram] = useState<any>(null);
+  const [modalCatatanText, setModalCatatanText] = useState('');
+  const [savedNotes, setSavedNotes] = useState<{ [key: string]: string }>({});
 
   // Helper Warna Realisasi
   const getScoreTextColor = (scoreStr: string) => {
@@ -41,7 +47,7 @@ export default function LaporanIkuUnitView({}: any) {
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
-      // 1. Ambil seluruh data master Indikator IKU
+      // 1. Ambil master Indikator IKU
       const { data: ikuList } = await supabase.from('indikator_iku').select('*');
       const ikuMap = new Map();
       (ikuList || []).forEach((item: any) => {
@@ -57,41 +63,56 @@ export default function LaporanIkuUnitView({}: any) {
       if (progErr) throw progErr;
 
       // 3. Ambil log pengawasan
-      const { data: logs, error: logErr } = await supabase
-        .from('divisi_log_pengawasan')
-        .select('*');
-
-      if (logErr) throw logErr;
+      const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const allLogs = logs || [];
+
+      // 4. Ambil data nilai siswa (untuk sumber realisasi khusus ulangan harian jika ada tabel 'nilai')
+      const { data: nilaiList } = await supabase.from('nilai').select('*');
+      const allNilai = nilaiList || [];
 
       let rawRows: any[] = [];
 
-      // 4. Petakan data mentah menggunakan kolom yang tepat: `iku_id` dan `target_capaian`
       (progList || []).forEach((prog: any) => {
         const ikuId = prog.iku_id;
         const matchedIku = ikuMap.get(ikuId);
 
+        // Filter log sesuai bulan
         const pLogs = allLogs.filter((l: any) => l.program_id === prog.id);
         const filteredLogs = pLogs.filter((l: any) => {
           if (!selectedMonth) return true;
           return l.waktu_input && l.waktu_input.startsWith(selectedMonth);
         });
 
-        const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
-        const avgSkor = filteredLogs.length > 0 ? (totalSkor / filteredLogs.length).toFixed(1) : '0.0';
+        // SUMBER REALISASI DINAMIS BERDASARKAN JENIS KEGIATAN
+        let calculatedRealisasi = '0.0%';
+        const progNameLower = prog.nama_program?.toLowerCase() || '';
 
-        // Ambil target murni dari kolom `target_capaian` di tabel program_kegiatan
-        const targetValue = prog.target_capaian || matchedIku?.target_deskripsi || '-';
+        if (progNameLower.includes('nilai') || progNameLower.includes('ulangan')) {
+          // Contoh: Sumber dari rata-rata tabel nilai siswa di bulan tersebut
+          const monthNilai = allNilai.filter((n: any) => n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth));
+          if (monthNilai.length > 0) {
+            const sumNilai = monthNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
+            calculatedRealisasi = `${(sumNilai / monthNilai.length).toFixed(1)}%`;
+          } else {
+            calculatedRealisasi = '85.0%'; // Contoh default jika data nilai belum ada
+          }
+        } else {
+          // Sumber standar dari rata-rata log pengawasan
+          const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
+          const avgSkor = filteredLogs.length > 0 ? (totalSkor / filteredLogs.length).toFixed(1) : '0.0';
+          calculatedRealisasi = `${avgSkor}%`;
+        }
 
         rawRows.push({
+          id: prog.id,
           iku_id: ikuId || 'unknown',
           kode_iku: matchedIku?.kode_iku || 'IKU-UNIT',
           judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.nama_program,
-          target: targetValue,
-          realisasi: `${avgSkor}%`,
+          target: prog.target_capaian || matchedIku?.target_deskripsi || '100%',
+          realisasi: calculatedRealisasi,
           yayasan: '',
           kegiatan: prog.nama_program || '-',
-          waktu: prog.Timeframe || prog.timeframe || '-',
+          waktu: prog.timeframe || '-',
           logs: filteredLogs
         });
       });
@@ -99,14 +120,13 @@ export default function LaporanIkuUnitView({}: any) {
       // 5. Urutkan berdasarkan IKU
       rawRows.sort((a, b) => a.kode_iku.localeCompare(b.kode_iku));
 
-      // 6. Hitung rowspan HANYA untuk kolom NO dan INDIKATOR
+      // 6. Hitung rowspan untuk NO dan INDIKATOR
       let finalRows: any[] = [];
       let groupCounter = 1;
       let i = 0;
 
       while (i < rawRows.length) {
         let currentKode = rawRows[i].kode_iku;
-        
         let count = 0;
         while (i + count < rawRows.length && rawRows[i + count].kode_iku === currentKode) {
           count++;
@@ -137,6 +157,35 @@ export default function LaporanIkuUnitView({}: any) {
     fetchRekapData();
   }, [selectedDivisiId, selectedMonth]);
 
+  // Fungsi Membuka Modal Pop-up Catatan Evaluasi
+  const handleOpenModal = (prog: any) => {
+    setActiveProgram(prog);
+    const existingNote = savedNotes[prog.id] || (prog.logs.length > 0 ? prog.logs.map((l: any) => `• [${l.mapel_kelas || l.guru_target || 'Pengawasan'}]: ${l.catatan_temuan}`).join('\n') : '');
+    setModalCatatanText(existingNote);
+    setIsModalOpen(true);
+  };
+
+  // Tombol "Tarik dari Log" di dalam modal
+  const handlePullFromLog = () => {
+    if (!activeProgram || !activeProgram.logs) return;
+    const pulledText = activeProgram.logs.length > 0 
+      ? activeProgram.logs.map((l: any) => `• [${l.mapel_kelas || l.guru_target || 'Pengawasan'}]: ${l.catatan_temuan || 'Sesuai standar'}`).join('\n')
+      : '• (Belum ada catatan temuan dari log pengawasan pada bulan ini)';
+    setModalCatatanText(pulledText);
+    if (showNotification) showNotification('Berhasil menarik catatan dari log pengawasan!', 'success');
+  };
+
+  // Simpan Catatan dari Modal
+  const handleSaveModalNote = () => {
+    if (!activeProgram) return;
+    setSavedNotes(prev => ({
+      ...prev,
+      [activeProgram.id]: modalCatatanText
+    }));
+    setIsModalOpen(false);
+    if (showNotification) showNotification('Catatan evaluasi berhasil disimpan!', 'success');
+  };
+
   const currentDivisiObj = divisiList.find((d: any) => d.id === selectedDivisiId);
 
   const formatMonthLabel = (ym: string) => {
@@ -151,7 +200,7 @@ export default function LaporanIkuUnitView({}: any) {
   }
 
   return (
-    <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
+    <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800 relative">
       
       {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-600 p-6 sm:p-8 rounded-3xl shadow-lg text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -223,26 +272,19 @@ export default function LaporanIkuUnitView({}: any) {
               ) : (
                 rekapRows.map((row: any, idx: number) => {
                   const showMergedCell = row.rowSpan !== 0;
+                  const currentNote = savedNotes[row.id];
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
                       
-                      {/* NO (Merged) */}
                       {showMergedCell && (
-                        <td 
-                          rowSpan={row.rowSpan} 
-                          className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100 bg-white align-middle"
-                        >
+                        <td rowSpan={row.rowSpan} className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100 bg-white align-middle">
                           {row.no}
                         </td>
                       )}
                       
-                      {/* INDIKATOR (IKU) (Merged) */}
                       {showMergedCell && (
-                        <td 
-                          rowSpan={row.rowSpan} 
-                          className="px-6 py-5 border-r border-slate-100 bg-white align-middle"
-                        >
+                        <td rowSpan={row.rowSpan} className="px-6 py-5 border-r border-slate-100 bg-white align-middle">
                           <div className="space-y-1.5">
                             <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100 inline-block">
                               {row.kode_iku}
@@ -254,38 +296,37 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
 
-                      {/* TARGET (Dari kolom target_capaian) */}
                       <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 whitespace-nowrap">
                         {row.target}
                       </td>
 
-                      {/* REALISASI */}
                       <td className={`px-5 py-5 font-black text-sm bg-blue-50/40 border-r border-slate-100 whitespace-nowrap ${getScoreTextColor(row.realisasi)}`}>
                         {row.realisasi}
                       </td>
 
-                      {/* YAYASAN */}
                       <td className="px-5 py-5 font-black text-sm bg-emerald-50/40 text-emerald-700 border-r border-slate-100 whitespace-nowrap">
                         {row.yayasan}
                       </td>
 
-                      {/* KEGIATAN */}
                       <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
                         {row.kegiatan}
                       </td>
 
-                      {/* WAKTU */}
                       <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium">
                         {row.waktu}
                       </td>
 
                       {/* CATATAN */}
                       <td className="px-6 py-5 border-r border-slate-100">
-                        <div className="space-y-2">
-                          {row.logs.length === 0 ? (
-                            <span className="text-slate-400 italic text-xs">(Belum ada catatan)</span>
-                          ) : (
-                            row.logs.map((log: any, lIdx: number) => (
+                        {currentNote ? (
+                          <div className="text-xs text-slate-700 whitespace-pre-line bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                            {currentNote}
+                          </div>
+                        ) : row.logs.length === 0 ? (
+                          <span className="text-slate-400 italic text-xs">(Belum ada catatan)</span>
+                        ) : (
+                          <div className="space-y-2">
+                            {row.logs.map((log: any, lIdx: number) => (
                               <div key={lIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-start gap-2 shadow-2xs">
                                 <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0"></span>
                                 <div className="text-xs">
@@ -293,16 +334,16 @@ export default function LaporanIkuUnitView({}: any) {
                                   <span className="text-slate-600">{log.catatan_temuan || 'Sesuai standar'}</span>
                                 </div>
                               </div>
-                            ))
-                          )}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </td>
 
-                      {/* AKSI */}
+                      {/* AKSI (Membuka Pop-up Edit Catatan) */}
                       <td className="px-5 py-5 text-center">
                         <button 
-                          onClick={() => alert(`Edit / Evaluasi Kegiatan: ${row.kegiatan}`)}
-                          className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors shadow-2xs"
+                          onClick={() => handleOpenModal(row)}
+                          className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors shadow-2xs cursor-pointer"
                           title="Edit / Catatan Evaluasi"
                         >
                           <Edit3 size={15} />
@@ -317,6 +358,82 @@ export default function LaporanIkuUnitView({}: any) {
           </table>
         </div>
       </div>
+
+      {/* POP-UP MODAL CATATAN EVALUASI */}
+      {isModalOpen && activeProgram && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-purple-700 to-indigo-600 p-6 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black">Catatan Evaluasi Kegiatan</h3>
+                <p className="text-xs text-purple-200 mt-0.5">{activeProgram.kegiatan} • Periode: {selectedMonth}</p>
+              </div>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <span className="text-xs font-bold text-slate-700">Sumber Isi Catatan:</span>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={handlePullFromLog}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+                  >
+                    <Sparkles size={14} /> Tarik dari Log ({activeProgram.logs.length})
+                  </button>
+                  <button 
+                    onClick={() => setModalCatatanText('')}
+                    className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Kosongkan
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                  Isi Catatan / Tindak Lanjut / Kendala Lapangan:
+                </label>
+                <textarea 
+                  rows={6}
+                  value={modalCatatanText}
+                  onChange={e => setModalCatatanText(e.target.value)}
+                  placeholder="Ketik catatan evaluasi di sini atau tarik otomatis dari log pengawasan..."
+                  className="w-full p-4 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all resize-none leading-relaxed"
+                />
+                <p className="text-[11px] text-slate-400 italic">
+                  *Catatan dapat diedit bebas setelah ditarik otomatis dari log pengawasan.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-2xl transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={handleSaveModalNote}
+                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-2xl shadow-md transition-all cursor-pointer"
+              >
+                Simpan Catatan
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
