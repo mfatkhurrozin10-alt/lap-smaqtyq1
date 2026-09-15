@@ -1,5 +1,4 @@
 // src/components/DashboardLayout.tsx
-import React from 'react';
 import { 
   LayoutDashboard, 
   FileText, 
