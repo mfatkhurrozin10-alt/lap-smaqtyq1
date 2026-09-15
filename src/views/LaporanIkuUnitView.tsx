@@ -33,7 +33,6 @@ export default function LaporanIkuUnitView({}: any) {
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
-      // 1. Ambil program kegiatan berdasarkan divisi_id
       const { data: progList, error: progErr } = await supabase
         .from('program_kegiatan')
         .select('*, indikator_iku(id, kode_iku, judul_iku, target_deskripsi)')
@@ -41,7 +40,6 @@ export default function LaporanIkuUnitView({}: any) {
 
       if (progErr) throw progErr;
 
-      // 2. Ambil seluruh log pengawasan
       const { data: logs, error: logErr } = await supabase
         .from('divisi_log_pengawasan')
         .select('*');
@@ -49,8 +47,10 @@ export default function LaporanIkuUnitView({}: any) {
       if (logErr) throw logErr;
       const allLogs = logs || [];
 
-      // Jika program kegiatan di unit ini kosong tapi ada log, kita buatkan baris rekap berdasarkan log agar data langsung terlihat
       if ((!progList || progList.length === 0) && allLogs.length > 0) {
+        const dummySum = allLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen), 0);
+        const dummyAvg = (dummySum / allLogs.length).toFixed(1);
+
         setProgramRekapList([{
           id: 'dummy-prog',
           nama_program: 'Monitoring KBM / Kegiatan Unit',
@@ -58,7 +58,7 @@ export default function LaporanIkuUnitView({}: any) {
           indikator_iku: { kode_iku: 'IKU-KHS', judul_iku: 'Ketercapaian Kinerja Unit Divisi' },
           target_pencapaian: '100%',
           logs: allLogs.filter((l: any) => !selectedMonth || l.waktu_input?.startsWith(selectedMonth)),
-          realisasi_persen: `${(allLogs.reduce((acc, curr) => acc + Number(curr.skor_persen), 0) / allLogs.length).toFixed(1)}%`
+          realisasi_persen: `${dummyAvg}%`
         }]);
         setLoading(false);
         return;
@@ -75,8 +75,9 @@ export default function LaporanIkuUnitView({}: any) {
           return l.waktu_input?.startsWith(selectedMonth);
         });
 
+        const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen), 0);
         const avgSkor = filteredLogs.length > 0 
-          ? (filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen), 0) / filteredLogs.length).toFixed(1)
+          ? (totalSkor / filteredLogs.length).toFixed(1)
           : '0';
 
         return {
