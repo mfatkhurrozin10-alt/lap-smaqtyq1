@@ -33,6 +33,7 @@ export default function LaporanIkuUnitView({}: any) {
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
+      // 1. Ambil program kegiatan berdasarkan divisi_id
       const { data: progList, error: progErr } = await supabase
         .from('program_kegiatan')
         .select('*, indikator_iku(id, kode_iku, judul_iku, target_deskripsi)')
@@ -40,19 +41,31 @@ export default function LaporanIkuUnitView({}: any) {
 
       if (progErr) throw progErr;
 
-      const programIds = progList?.map((p: any) => p.id) || [];
-      let logsData: any[] = [];
-      
-      if (programIds.length > 0) {
-        // Menggunakan filter manual atau .or / loop untuk menghindari error tipe .in() pada versi TS tertentu
-        const { data: logs, error: logErr } = await supabase
-          .from('divisi_log_pengawasan')
-          .select('*');
+      // 2. Ambil seluruh log pengawasan
+      const { data: logs, error: logErr } = await supabase
+        .from('divisi_log_pengawasan')
+        .select('*');
 
-        if (logErr) throw logErr;
-        // Filter program_id secara lokal agar aman dari error tipe Supabase
-        logsData = (logs || []).filter((l: any) => programIds.includes(l.program_id));
+      if (logErr) throw logErr;
+      const allLogs = logs || [];
+
+      // Jika program kegiatan di unit ini kosong tapi ada log, kita buatkan baris rekap berdasarkan log agar data langsung terlihat
+      if ((!progList || progList.length === 0) && allLogs.length > 0) {
+        setProgramRekapList([{
+          id: 'dummy-prog',
+          nama_program: 'Monitoring KBM / Kegiatan Unit',
+          timeframe: 'Harian',
+          indikator_iku: { kode_iku: 'IKU-KHS', judul_iku: 'Ketercapaian Kinerja Unit Divisi' },
+          target_pencapaian: '100%',
+          logs: allLogs.filter((l: any) => !selectedMonth || l.waktu_input?.startsWith(selectedMonth)),
+          realisasi_persen: `${(allLogs.reduce((acc, curr) => acc + Number(curr.skor_persen), 0) / allLogs.length).toFixed(1)}%`
+        }]);
+        setLoading(false);
+        return;
       }
+
+      const programIds = progList?.map((p: any) => p.id) || [];
+      const logsData = allLogs.filter((l: any) => programIds.includes(l.program_id));
 
       const combined = progList?.map((prog: any) => {
         const pLogs = logsData.filter((l: any) => l.program_id === prog.id);
@@ -154,7 +167,10 @@ export default function LaporanIkuUnitView({}: any) {
             <tbody className="divide-y divide-slate-100">
               {programRekapList.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-slate-400">Belum ada program atau indikator IKU pada unit {currentDivisiObj?.nama_divisi}.</td>
+                  <td colSpan={8} className="text-center py-12 text-slate-400">
+                    Belum ada program atau data riwayat pada unit {currentDivisiObj?.nama_divisi} untuk bulan {selectedMonth}. 
+                    <br/><span className="text-xs text-blue-500 font-semibold mt-1 inline-block">Tips: Coba ubah pilihan filter BULAN atau pastikan data riwayat sudah diinput.</span>
+                  </td>
                 </tr>
               ) : (
                 programRekapList.map((prog: any, idx: number) => {
