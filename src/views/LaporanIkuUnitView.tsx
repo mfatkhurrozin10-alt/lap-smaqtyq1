@@ -64,12 +64,10 @@ export default function LaporanIkuUnitView({}: any) {
       if (logErr) throw logErr;
       const allLogs = logs || [];
 
-      let flatRows: any[] = [];
-      let counter = 1;
+      let rawRows: any[] = [];
 
-      // 4. Gabungkan data dengan pencocokan ID IKU yang fleksibel
+      // 4. Petakan data mentah terlebih dahulu
       (progList || []).forEach((prog: any) => {
-        // Cari ID IKU dari berbagai kemungkinan nama kolom di tabel program_kegiatan
         const ikuId = prog.indikator_id || prog.indikator_iku_id || prog.iku_id;
         const matchedIku = ikuMap.get(ikuId);
 
@@ -82,11 +80,12 @@ export default function LaporanIkuUnitView({}: any) {
         const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
         const avgSkor = filteredLogs.length > 0 ? (totalSkor / filteredLogs.length).toFixed(1) : '0.0';
 
-        flatRows.push({
-          no: counter++,
+        rawRows.push({
+          iku_id: ikuId || 'unknown',
           kode_iku: matchedIku?.kode_iku || prog.kode_iku || 'IKU-UNIT',
           judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.judul_iku || prog.nama_program,
-          target: prog.target_pencapaian || matchedIku?.target_deskripsi || '100%',
+          // Target diambil dari master indikator_iku (target_deskripsi), fallback ke target program jika kosong
+          target: matchedIku?.target_deskripsi || prog.target_pencapaian || '100%',
           realisasi: `${avgSkor}%`,
           yayasan: '', // Dikosongkan sesuai permintaan
           kegiatan: prog.nama_program || '-',
@@ -95,7 +94,38 @@ export default function LaporanIkuUnitView({}: any) {
         });
       });
 
-      setRekapRows(flatRows);
+      // 5. Urutkan berdasarkan IKU agar yang sama berkumpul
+      rawRows.sort((a, b) => a.kode_iku.localeCompare(b.kode_iku));
+
+      // 6. Hitung rowspan (penggabungan sel) untuk IKU yang sama
+      let finalRows: any[] = [];
+      let groupCounter = 1;
+      let i = 0;
+
+      while (i < rawRows.length) {
+        let currentIkuId = rawRows[i].iku_id;
+        let currentKode = rawRows[i].kode_iku;
+        
+        // Cari berapa banyak baris dengan IKU yang sama
+        let count = 0;
+        while (i + count < rawRows.length && rawRows[i + count].kode_iku === currentKode) {
+          count++;
+        }
+
+        for (let j = 0; j < count; j++) {
+          let row = rawRows[i + j];
+          finalRows.push({
+            ...row,
+            no: j === 0 ? groupCounter : '', // Nomor hanya tampil di baris pertama grup
+            rowSpan: j === 0 ? count : 0,    // Baris pertama memegang rowspan sejumlah count
+          });
+        }
+
+        groupCounter++;
+        i += count;
+      }
+
+      setRekapRows(finalRows);
     } catch (err) {
       console.error(err);
     } finally {
@@ -191,81 +221,103 @@ export default function LaporanIkuUnitView({}: any) {
                   </td>
                 </tr>
               ) : (
-                rekapRows.map((row: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
-                    
-                    {/* 1. NO */}
-                    <td className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100">{row.no}</td>
-                    
-                    {/* 2. INDIKATOR (IKU) */}
-                    <td className="px-6 py-5 border-r border-slate-100">
-                      <div className="space-y-1.5">
-                        <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100 inline-block">
-                          {row.kode_iku}
-                        </span>
-                        <p className="text-xs font-bold text-slate-800 leading-snug">
-                          {row.judul_iku}
-                        </p>
-                      </div>
-                    </td>
+                rekapRows.map((row: any, idx: number) => {
+                  // Jika rowSpan > 0, render sel tersebut. Jika rowSpan === 0, jangan render sel tersebut (karena digabung ke atas)
+                  const showMergedCell = row.rowSpan !== 0;
 
-                    {/* 3. TARGET */}
-                    <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100">
-                      {row.target}
-                    </td>
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
+                      
+                      {/* 1. NO (Merged) */}
+                      {showMergedCell && (
+                        <td 
+                          rowSpan={row.rowSpan} 
+                          className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100 bg-white align-middle"
+                        >
+                          {row.no}
+                        </td>
+                      )}
+                      
+                      {/* 2. INDIKATOR (IKU) (Merged) */}
+                      {showMergedCell && (
+                        <td 
+                          rowSpan={row.rowSpan} 
+                          className="px-6 py-5 border-r border-slate-100 bg-white align-middle"
+                        >
+                          <div className="space-y-1.5">
+                            <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100 inline-block">
+                              {row.kode_iku}
+                            </span>
+                            <p className="text-xs font-bold text-slate-800 leading-snug">
+                              {row.judul_iku}
+                            </p>
+                          </div>
+                        </td>
+                      )}
 
-                    {/* 4. REALISASI (Biru Muda) */}
-                    <td className={`px-5 py-5 font-black text-sm bg-blue-50/40 border-r border-slate-100 whitespace-nowrap ${getScoreTextColor(row.realisasi)}`}>
-                      {row.realisasi}
-                    </td>
+                      {/* 3. TARGET (Merged) */}
+                      {showMergedCell && (
+                        <td 
+                          rowSpan={row.rowSpan} 
+                          className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 bg-white align-middle"
+                        >
+                          {row.target}
+                        </td>
+                      )}
 
-                    {/* 5. YAYASAN (Hijau Muda - Dikosongkan) */}
-                    <td className="px-5 py-5 font-black text-sm bg-emerald-50/40 text-emerald-700 border-r border-slate-100 whitespace-nowrap">
-                      {row.yayasan}
-                    </td>
+                      {/* 4. REALISASI (Biru Muda) - Per kegiatan */}
+                      <td className={`px-5 py-5 font-black text-sm bg-blue-50/40 border-r border-slate-100 whitespace-nowrap ${getScoreTextColor(row.realisasi)}`}>
+                        {row.realisasi}
+                      </td>
 
-                    {/* 6. KEGIATAN */}
-                    <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
-                      {row.kegiatan}
-                    </td>
+                      {/* 5. YAYASAN (Hijau Muda - Dikosongkan) */}
+                      <td className="px-5 py-5 font-black text-sm bg-emerald-50/40 text-emerald-700 border-r border-slate-100 whitespace-nowrap">
+                        {row.yayasan}
+                      </td>
 
-                    {/* 7. WAKTU */}
-                    <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium">
-                      {row.waktu}
-                    </td>
+                      {/* 6. KEGIATAN - Per kegiatan */}
+                      <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
+                        {row.kegiatan}
+                      </td>
 
-                    {/* 8. CATATAN */}
-                    <td className="px-6 py-5 border-r border-slate-100">
-                      <div className="space-y-2">
-                        {row.logs.length === 0 ? (
-                          <span className="text-slate-400 italic text-xs">(Belum ada catatan)</span>
-                        ) : (
-                          row.logs.map((log: any, lIdx: number) => (
-                            <div key={lIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-start gap-2 shadow-2xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0"></span>
-                              <div className="text-xs">
-                                <span className="font-semibold text-slate-700 mr-1">[{log.mapel_kelas || log.guru_target || 'Pengawasan'}]:</span>
-                                <span className="text-slate-600">{log.catatan_temuan || 'Sesuai standar'}</span>
+                      {/* 7. WAKTU - Per kegiatan */}
+                      <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium">
+                        {row.waktu}
+                      </td>
+
+                      {/* 8. CATATAN - Per kegiatan */}
+                      <td className="px-6 py-5 border-r border-slate-100">
+                        <div className="space-y-2">
+                          {row.logs.length === 0 ? (
+                            <span className="text-slate-400 italic text-xs">(Belum ada catatan)</span>
+                          ) : (
+                            row.logs.map((log: any, lIdx: number) => (
+                              <div key={lIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-start gap-2 shadow-2xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0"></span>
+                                <div className="text-xs">
+                                  <span className="font-semibold text-slate-700 mr-1">[{log.mapel_kelas || log.guru_target || 'Pengawasan'}]:</span>
+                                  <span className="text-slate-600">{log.catatan_temuan || 'Sesuai standar'}</span>
+                                </div>
                               </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </td>
+                            ))
+                          )}
+                        </div>
+                      </td>
 
-                    {/* 9. AKSI */}
-                    <td className="px-5 py-5 text-center">
-                      <button 
-                        onClick={() => alert(`Edit / Evaluasi Kegiatan: ${row.kegiatan}`)}
-                        className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors shadow-2xs"
-                        title="Edit / Catatan Evaluasi"
-                      >
-                        <Edit3 size={15} />
-                      </button>
-                    </td>
+                      {/* 9. AKSI */}
+                      <td className="px-5 py-5 text-center">
+                        <button 
+                          onClick={() => alert(`Edit / Evaluasi Kegiatan: ${row.kegiatan}`)}
+                          className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors shadow-2xs"
+                          title="Edit / Catatan Evaluasi"
+                        >
+                          <Edit3 size={15} />
+                        </button>
+                      </td>
 
-                  </tr>
-                ))
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
