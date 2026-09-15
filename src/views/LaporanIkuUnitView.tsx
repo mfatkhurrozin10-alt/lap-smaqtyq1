@@ -73,7 +73,7 @@ export default function LaporanIkuUnitView({}: any) {
       (progList || []).forEach((prog: any) => {
         let iku = prog.indikator_iku;
         
-        // Perbaikan khusus untuk memastikan baris ke-3 atau Kontrol Nilai Ulangan Harian mengambil IKU yang benar jika relasi kosong
+        // Fallback murni sesuai data database Anda tanpa tambahan teks luar
         if (!iku || !iku.judul_iku) {
           const progName = prog.nama_program?.toLowerCase() || '';
           if (progName.includes('kbm') || counter === 1) {
@@ -81,7 +81,7 @@ export default function LaporanIkuUnitView({}: any) {
           } else if (progName.includes('komunitas') || progName.includes('kombel') || counter === 2) {
             iku = { kode_iku: 'IKU-KUR-02', judul_iku: 'Penerapan Pembelajaran Interaktif/HOTS', target_deskripsi: '4 Kali/Bulan' };
           } else if (progName.includes('kontrol') || progName.includes('nilai') || counter === 3) {
-            iku = { kode_iku: 'IKU-KUR-03', judul_iku: 'Rata-rata Nilai Ujian Sekolah (Sains & Non-Sains)', target_deskripsi: '80% Tuntas' };
+            iku = { kode_iku: 'IKU-KUR-03', judul_iku: 'Rata-rata Nilai Ujian Sekolah', target_deskripsi: '80% Tuntas' };
           } else {
             iku = { kode_iku: `IKU-KUR-0${counter}`, judul_iku: prog.nama_program, target_deskripsi: '100%' };
           }
