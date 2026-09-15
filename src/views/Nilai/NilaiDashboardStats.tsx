@@ -3,10 +3,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { Icons } from '../../Icons';
 
 export default function NilaiDashboardStats({
-  stats, // Ditambahkan untuk menerima data stats dari parent
+  stats, 
   filterMapel, setFilterMapel, filteredMapelOptions,
   filterKelas, setFilterKelas, options, search, setSearch,
-  fetchLoading, groupedByMapelAndKelas, setDeleteTarget,
+  fetchLoading, groupedByMapelAndKelas,
   filterGuru, setFilterGuru, isTeacherRole
 }: any) {
   
