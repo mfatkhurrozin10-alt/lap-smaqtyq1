@@ -2,10 +2,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Icons } from '../Icons';
-import { Card } from '../components/UIComponents';
 
-export default function SistemAbsensiView({ showNotification, user }: any) {
-  const [activeTab, setActiveTab] = useState<'input' | 'rekap_harian' | 'detail' | 'rekap_bulanan'>('rekap_harian');
+export default function SistemAbsensiView({ showNotification }: any) {
+  const [activeTab, setActiveTab] = useState<'rekap_harian' | 'detail' | 'rekap_bulanan'>('rekap_harian');
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -13,11 +12,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
   
   const [siswaList, setSiswaList] = useState<any[]>([]);
   const [kehadiranList, setKehadiranList] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
-
-  const [assignedClasses, setAssignedClasses] = useState<string[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<Record<string, string>>({});
 
   const fetchData = useCallback(async () => {
     setFetchLoading(true);
@@ -62,108 +57,10 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
   const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => s.kelas?.trim()).filter(Boolean))).sort(), [siswaList]);
 
   useEffect(() => {
-    const fetchBkClasses = async () => {
-      if (!user?.id || user.role === 'admin' || user.id === 'admin-123') {
-        if (availableClasses.length > 0) {
-          setAssignedClasses(availableClasses);
-          if (!selectedClass) setSelectedClass(availableClasses[0]);
-        }
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase.from('bk_mapping').select('kelas').eq('guru_id', user.id);
-        if (error) throw error;
-        const classes = (data || []).map((m: any) => m.kelas);
-        
-        const finalClasses = classes.length > 0 ? classes : availableClasses;
-        setAssignedClasses(finalClasses);
-        
-        if (!selectedClass && finalClasses.length > 0) {
-          setSelectedClass(finalClasses[0]);
-        }
-      } catch (err: any) {
-        setAssignedClasses(availableClasses);
-        if (!selectedClass && availableClasses.length > 0) setSelectedClass(availableClasses[0]);
-      }
-    };
-
-    if (availableClasses.length > 0) {
-      fetchBkClasses();
+    if (availableClasses.length > 0 && !selectedClass) {
+      setSelectedClass(availableClasses[0]);
     }
-  }, [user, availableClasses, selectedClass]);
-
-  useEffect(() => {
-    if (!selectedClass || siswaList.length === 0) return;
-    
-    const studentsInClass = siswaList.filter(s => s.kelas?.trim() === selectedClass);
-    const initialStatus: Record<string, string> = {};
-    const todayRecords = kehadiranList.filter(k => k.tanggal === selectedDate);
-    
-    studentsInClass.forEach((s: any) => {
-      if (s.id) {
-        const existingRecord = todayRecords.find(r => String(r.nisn).trim() === String(s.nisn || s.nis).trim());
-        initialStatus[s.id] = existingRecord ? existingRecord.keterangan : 'Hadir';
-      }
-    });
-    setAttendanceRecords(initialStatus);
-  }, [selectedClass, siswaList, selectedDate, kehadiranList]);
-
-  const handleAttendanceChange = (siswaId: string, status: string) => {
-    setAttendanceRecords(prev => ({
-      ...prev,
-      [siswaId]: status
-    }));
-  };
-
-  // FUNGSI SIMPAN & EDIT (MENGGUNAKAN MATCH AGAR AMAN DARI ERROR TYPESCRIPT)
-  const handleSaveAttendance = async () => {
-    const studentsInClass = siswaList.filter(s => s.kelas?.trim() === selectedClass);
-    
-    if (!selectedClass || studentsInClass.length === 0) {
-      showNotification('Tidak ada data siswa untuk disimpan', 'error');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const payloadList = Object.entries(attendanceRecords).map(([siswaId, status]) => {
-        const foundSiswa = studentsInClass.find(s => s.id === siswaId);
-        const identifier = String(foundSiswa?.nisn || foundSiswa?.nis || '-').trim();
-        return {
-          nisn: identifier,
-          nama: foundSiswa?.nama || 'Siswa',
-          tanggal: selectedDate,
-          keterangan: status
-        };
-      });
-
-      // Menggunakan .match() dengan as any untuk menghindari error tipe data delete di Supabase
-      for (const item of payloadList) {
-        await (supabase.from('kehadiran').delete() as any).match({
-          tanggal: item.tanggal,
-          nisn: item.nisn
-        });
-      }
-
-      const { error } = await supabase.from('kehadiran').insert(payloadList);
-      if (error) throw error;
-      
-      showNotification(`Berhasil menyimpan rekap absensi ${selectedClass}!`, 'success');
-      await fetchData();
-      setActiveTab('rekap_harian');
-    } catch (err: any) {
-      showNotification(err.message || 'Gagal menyimpan kehadiran', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const prepareInputData = (kelas: string, date: string) => {
-    setSelectedClass(kelas);
-    setSelectedDate(date);
-    setActiveTab('input');
-  };
+  }, [availableClasses, selectedClass]);
 
   const dailyData = useMemo(() => {
     const todayRecords = kehadiranList.filter(k => k.tanggal === selectedDate);
@@ -226,7 +123,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     });
   }, [siswaList, kehadiranList, availableClasses]);
 
-  // Statistik Bulanan Global (digunakan pada card rekap bulanan)
   const monthlyGlobalStats = useMemo(() => monthlyData.reduce((acc, curr) => ({
     hadir: acc.hadir + curr.hadir, sakit: acc.sakit + curr.sakit, izin: acc.izin + curr.izin, alfa: acc.alfa + curr.alfa
   }), { hadir: 0, sakit: 0, izin: 0, alfa: 0 }), [monthlyData]);
@@ -236,10 +132,9 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
       <div className="bg-indigo-600 rounded-3xl p-4 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-md mb-6">
         <h1 className="font-extrabold text-xl sm:text-2xl text-white flex items-center gap-3">
           <span className="bg-white/20 p-2 rounded-xl"><Icons.FileText /></span>
-          Sistem Absensi Santri
+          Sistem Rekapitulasi Absensi Santri
         </h1>
         <div className="flex flex-wrap items-center gap-1.5 bg-indigo-800/40 p-1.5 rounded-2xl w-fit">
-          <button onClick={() => setActiveTab('input')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'input' ? 'bg-white text-indigo-700 shadow' : 'text-indigo-100 hover:bg-white/10'}`}>Input Absensi</button>
           <button onClick={() => setActiveTab('rekap_harian')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'rekap_harian' ? 'bg-white text-indigo-700 shadow' : 'text-indigo-100 hover:bg-white/10'}`}>Rekap Hari Ini</button>
           <button onClick={() => setActiveTab('detail')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'detail' ? 'bg-white text-indigo-700 shadow' : 'text-indigo-100 hover:bg-white/10'}`}>Detail Kehadiran</button>
           <button onClick={() => setActiveTab('rekap_bulanan')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'rekap_bulanan' ? 'bg-white text-indigo-700 shadow' : 'text-indigo-100 hover:bg-white/10'}`}>Rekap Bulanan</button>
@@ -250,87 +145,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
         <div className="p-12 text-center text-slate-400 font-medium animate-pulse">Memuat data absensi...</div>
       ) : (
         <>
-          {activeTab === 'input' && (
-            <div className="space-y-6 w-full text-left animate-in fade-in duration-300">
-              {assignedClasses.length === 0 ? (
-                <div className="p-8 sm:p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-sm">
-                  <h3 className="text-base sm:text-lg font-bold text-slate-800">Belum Ada Kelas Tersedia</h3>
-                </div>
-              ) : (
-                <>
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap items-center gap-4 shadow-sm w-full">
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Pilih Kelas</label>
-                      <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
-                        {assignedClasses.map(cls => <option key={cls} value={cls}>Kelas {cls}</option>)}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Tanggal Absensi</label>
-                      <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                  </div>
-
-                  <Card title={`Absensi Kelas ${selectedClass}`} subtitle={`Tanggal Rekam: ${selectedDate}`}>
-                    <div className="w-full overflow-x-auto">
-                      <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead className="bg-slate-50 border-y border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                          <tr>
-                            <th className="px-4 sm:px-6 py-3.5">No</th>
-                            <th className="px-4 sm:px-6 py-3.5">NIS / NISN</th>
-                            <th className="px-4 sm:px-6 py-3.5">Nama Siswa</th>
-                            <th className="px-4 sm:px-6 py-3.5 text-center">Status Kehadiran</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {siswaList.filter(s => s.kelas?.trim() === selectedClass).length === 0 ? (
-                            <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium">Tidak ada siswa di kelas ini.</td></tr>
-                          ) : (
-                            siswaList.filter(s => s.kelas?.trim() === selectedClass).map((siswa, idx) => {
-                              const currentStatus = attendanceRecords[siswa.id] || 'Hadir';
-                              const displayIdentitas = siswa.nis || siswa.nisn || '-';
-
-                              return (
-                                <tr key={siswa.id} className="hover:bg-slate-50 transition-colors">
-                                  <td className="px-4 sm:px-6 py-3.5 font-mono text-slate-400">{idx + 1}</td>
-                                  <td className="px-4 sm:px-6 py-3.5 font-mono font-semibold text-slate-600">{displayIdentitas}</td>
-                                  <td className="px-4 sm:px-6 py-3.5 font-bold text-slate-900">{siswa.nama}</td>
-                                  <td className="px-4 sm:px-6 py-3.5 text-center">
-                                    <div className="inline-flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
-                                      {['Hadir', 'Sakit', 'Izin', 'Alpha'].map(st => (
-                                        <button
-                                          key={st}
-                                          type="button"
-                                          onClick={() => handleAttendanceChange(siswa.id, st)}
-                                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                                            currentStatus === st 
-                                              ? (st === 'Hadir' ? 'bg-emerald-600 text-white shadow' : st === 'Sakit' ? 'bg-blue-600 text-white shadow' : st === 'Izin' ? 'bg-amber-600 text-white shadow' : 'bg-rose-600 text-white shadow') 
-                                              : 'text-slate-600 hover:bg-white'
-                                          }`}
-                                        >
-                                          {st}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="pt-6 flex justify-end">
-                      <button onClick={handleSaveAttendance} disabled={loading} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-md transition-all">
-                        {loading ? 'Menyimpan...' : 'Simpan Rekap Kehadiran'}
-                      </button>
-                    </div>
-                  </Card>
-                </>
-              )}
-            </div>
-          )}
-
           {activeTab === 'rekap_harian' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -385,7 +199,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
                         <th className="px-5 py-4 text-center text-rose-600">ALPHA</th>
                         <th className="px-5 py-4 text-center">% HADIR</th>
                         <th className="px-5 py-4">SANTRI TIDAK HADIR HARI INI</th>
-                        <th className="px-5 py-4 text-right">AKSI</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -414,11 +227,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
                                   ))}
                                 </div>
                               )}
-                            </td>
-                            <td className="px-5 py-3 text-right">
-                              <button onClick={() => prepareInputData(row.kelas, selectedDate)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${isInputted ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100' : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100'}`}>
-                                {isInputted ? 'Edit' : 'Input'}
-                              </button>
                             </td>
                           </tr>
                         );
