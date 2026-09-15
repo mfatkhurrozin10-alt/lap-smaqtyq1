@@ -106,28 +106,26 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
       .slice(0, 5);
   }, [tabunganData]);
 
-  // Format tanggal menjadi DD-MM saja dan urutkan
+  // Olah Data untuk Grafik dengan Format Tanggal DD-MM
   const chartData = useMemo(() => {
     const dailyMap: { [key: string]: number } = {};
     
     tabunganData.forEach(siswa => {
       if (siswa.history && Array.isArray(siswa.history)) {
         siswa.history.forEach((h: any) => {
-          const rawTgl = h.tanggal; // Contoh: "2026-09-10" atau "10/09/2026"
+          const rawTgl = h.tanggal; 
           const nominal = Number(h.nominal || 0);
+          
           if (rawTgl) {
-            let formattedDate = rawTgl;
-            // Ubah format YYYY-MM-DD atau DD/MM/YYYY menjadi DD-MM
-            if (rawTgl.includes('-')) {
-              const parts = rawTgl.split('-'); // [YYYY, MM, DD] atau [DD, MM, YYYY]
-              if (parts[0].length === 4) {
-                formattedDate = `${parts[2]}-${parts[1]}`;
-              } else {
-                formattedDate = `${parts[0]}-${parts[1]}`;
-              }
-            } else if (rawTgl.includes('/')) {
-              const parts = rawTgl.split('/'); // [DD, MM, YYYY]
-              formattedDate = `${parts[0]}-${parts[1]}`;
+            let formattedDate = '';
+            const parsedDate = new Date(rawTgl);
+            
+            if (!isNaN(parsedDate.getTime())) {
+              const day = String(parsedDate.getDate()).padStart(2, '0');
+              const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+              formattedDate = `${day}-${month}`;
+            } else {
+              formattedDate = rawTgl.slice(0, 5); 
             }
 
             dailyMap[formattedDate] = (dailyMap[formattedDate] || 0) + nominal;
@@ -230,7 +228,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
               <div className="h-64 flex items-center justify-center text-xs text-slate-400">Belum ada data riwayat transaksi harian.</div>
             ) : (
               <div className="pt-2">
-                {/* SVG Line Chart dengan Label Tanggal Miring (DD-MM) */}
                 <div className="w-full h-64 overflow-x-auto pb-4">
                   <svg className="w-full h-full min-w-[700px]" viewBox="0 0 750 220" preserveAspectRatio="none">
                     <line x1="0" y1="30" x2="750" y2="30" stroke="#f1f5f9" strokeWidth="1" />
@@ -274,7 +271,6 @@ export default function KelolaTabunganAdminView({ showNotification }: any) {
                             return (
                               <g key={i} className="group cursor-pointer">
                                 <circle cx={x} cy={y} r="4.5" fill="#ffffff" stroke="#059669" strokeWidth="2.5" />
-                                {/* Teks Tanggal Miring (Tanpa Tahun, Format: 10-09) */}
                                 <text 
                                   x={x} 
                                   y="175" 
