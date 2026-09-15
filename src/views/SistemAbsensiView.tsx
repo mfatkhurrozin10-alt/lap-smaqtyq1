@@ -182,7 +182,11 @@ export default function SistemAbsensiView({ showNotification }: any) {
     // Hapus data lama di tanggal ini untuk kelas ini agar tidak dobel
       const nisnList = studentsInClass.map(s => s.nisn || s.nis).filter(Boolean);
       if (nisnList.length > 0) {
-         await (supabase.from('kehadiran').delete().eq('tanggal', selectedDate) as any).in('nisn', nisnList);
+        // Menggunakan Promise.all untuk mencegah error .in() pada versi Supabase tertentu
+        const deletePromises = nisnList.map(identifier => 
+          supabase.from('kehadiran').delete().eq('tanggal', selectedDate).eq('nisn', identifier)
+        );
+        await Promise.all(deletePromises);
       }
 
       const payloadList = Object.entries(attendanceRecords).map(([siswaId, status]) => {
