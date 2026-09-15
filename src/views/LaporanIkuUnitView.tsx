@@ -80,8 +80,8 @@ export default function LaporanIkuUnitView({}: any) {
         const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
         const avgSkor = filteredLogs.length > 0 ? (totalSkor / filteredLogs.length).toFixed(1) : '0.0';
 
-        // Ambil target secara akurat dari program kegiatan, jika kosong ambil dari master indikator, jika masih kosong gunakan '-'
-        const targetValue = prog.target_pencapaian || prog.target || prog.target_deskripsi || matchedIku?.target_deskripsi || '-';
+        // Mengambil target secara akurat dengan memprioritaskan kolom `prog.target`
+        const targetValue = prog.target || prog.target_pencapaian || matchedIku?.target_deskripsi || '-';
 
         rawRows.push({
           iku_id: ikuId || 'unknown',
@@ -252,7 +252,7 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
 
-                      {/* TARGET (Sesuai target program kegiatan) */}
+                      {/* TARGET */}
                       <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 whitespace-nowrap">
                         {row.target}
                       </td>
