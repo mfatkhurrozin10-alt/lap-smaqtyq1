@@ -1,20 +1,16 @@
 // src/views/DivisiKurikulumView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { Icons } from '../Icons';
 import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Printer } from 'lucide-react';
 
 export default function DivisiKurikulumView({ showNotification }: any) {
-  // State Utama Divisi Kurikulum (ID Divisi Kurikulum di database atau dipilih dinamis)
   const [divisiData, setDivisiData] = useState<any>(null);
   const [programList, setProgramList] = useState<any[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>('form');
   
-  // Timeframe Filter (Harian, Mingguan, Bulanan, Tahunan)
   const [timeframe, setTimeframe] = useState('Harian');
 
-  // State Form Ceklis Input
   const [formInput, setFormInput] = useState({
     petugas_pj: 'Ummi Mukhoyyaroh, M.Pd.',
     guru_target: '',
@@ -26,7 +22,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const [kategoriList, setKategoriList] = useState<any[]>([]);
   const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>({});
 
-  // State Riwayat & Realisasi
   const [riwayatList, setRiwayatList] = useState<any[]>([]);
   const [formConfig, setFormConfig] = useState<any>({
     show_petugas: true,
@@ -37,21 +32,19 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     show_santri_absen: true
   });
 
-  // State Customize Form (Tambah Kategori & Butir Baru)
   const [newKategoriNama, setNewKategoriNama] = useState('');
   const [newKategoriTipe, setNewKategoriTipe] = useState('Negatif (Temuan/Pelanggaran)');
   const [inputButirBaru, setInputButirBaru] = useState<{ [key: string]: string }>({});
 
-  // Load Data Awal (Divisi & Program Kurikulum)
   const fetchInitialData = async () => {
     try {
-      // Cari divisi dengan kode KUR atau nama Kurikulum
-      const { data: div } = await supabase.from('divisi').select('*').ilike('nama_divisi', '%Kurikulum%').single();
-      if (div) {
-        setDivisiData(div);
-        // Ambil program yang terikat dengan divisi ini
-        const { data: prog } = await supabase.from('program_kegiatan').select('*').eq('divisi_id', div.id);
-        setProgramList(prog || [] );
+      const { data: divList } = await supabase.from('divisi').select('*');
+      const kurikulumDiv = divList?.find(d => d.nama_divisi?.toLowerCase().includes('kurikulum')) || divList?.[0];
+
+      if (kurikulumDiv) {
+        setDivisiData(kurikulumDiv);
+        const { data: prog } = await supabase.from('program_kegiatan').select('*').eq('divisi_id', kurikulumDiv.id);
+        setProgramList(prog || []);
         if (prog && prog.length > 0 && !selectedProgramId) {
           setSelectedProgramId(prog[0].id);
         }
@@ -65,19 +58,17 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     fetchInitialData();
   }, []);
 
-  // Load Detail Program saat selectedProgramId berubah
   const fetchProgramDetail = async () => {
     if (!selectedProgramId) return;
     try {
-      // Ambil Konfigurasi Form
-      const { data: cfg } = await supabase.from('divisi_form_config').select('*').eq('program_id', selectedProgramId).single();
-      if (cfg) setFormConfig(cfg);
+      const { data: cfgList } = await supabase.from('divisi_form_config').select('*').eq('program_id', selectedProgramId);
+      if (cfgList && cfgList.length > 0) {
+        setFormConfig(cfgList[0]);
+      }
 
-      // Ambil Kategori & Butir Ceklis beserta relasinya
       const { data: kat } = await supabase.from('divisi_kategori_indikator').select('*, divisi_butir_ceklis(*)').eq('program_id', selectedProgramId).order('urutan');
       setKategoriList(kat || []);
 
-      // Ambil Riwayat Pengawasan
       const { data: riw } = await supabase.from('divisi_log_pengawasan').select('*').eq('program_id', selectedProgramId).order('waktu_input', { ascending: false });
       setRiwayatList(riw || []);
     } catch (err: any) {
@@ -89,11 +80,9 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     fetchProgramDetail();
   }, [selectedProgramId]);
 
-  // Handler Submit Form Ceklis
   const handleSubmitCeklis = async (e: any) => {
     e.preventDefault();
     try {
-      // Hitung skor sederhana berdasarkan temuan yang dicentang
       let totalButir = 0;
       let temuanAktif = 0;
       kategoriList.forEach(kat => {
@@ -130,7 +119,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     }
   };
 
-  // Tambah Kategori Baru (Customize Form)
   const handleAddKategori = async (e: any) => {
     e.preventDefault();
     if (!newKategoriNama) return;
@@ -149,7 +137,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     }
   };
 
-  // Tambah Butir Ceklis ke Kategori
   const handleAddButir = async (kategoriId: string) => {
     const namaButir = inputButirBaru[kategoriId];
     if (!namaButir) return;
@@ -167,7 +154,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     }
   };
 
-  // Hapus Butir Ceklis
   const handleDeleteButir = async (butirId: string) => {
     try {
       await supabase.from('divisi_butir_ceklis').delete().eq('id', butirId);
@@ -178,14 +164,12 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     }
   };
 
-  // Update Config Checkbox Kolom Form
   const handleToggleConfig = async (field: string, value: boolean) => {
     const updated = { ...formConfig, [field]: value };
     setFormConfig(updated);
     try {
-      // Cek apakah config sudah ada
-      const { data: existing } = await supabase.from('divisi_form_config').select('id').eq('program_id', selectedProgramId).single();
-      if (existing) {
+      const { data: existing } = await supabase.from('divisi_form_config').select('id').eq('program_id', selectedProgramId);
+      if (existing && existing.length > 0) {
         await supabase.from('divisi_form_config').update({ [field]: value }).eq('program_id', selectedProgramId);
       } else {
         await supabase.from('divisi_form_config').insert([{ program_id: selectedProgramId, [field]: value }]);
@@ -200,8 +184,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
 
   return (
     <div className="space-y-6 w-full text-left pb-12">
-      
-      {/* HEADER DIVISI & FILTER PROGRAM */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Divisi {divisiData?.nama_divisi || 'Kurikulum'}</h2>
@@ -209,7 +191,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Filter Timeframe */}
           <div className="flex bg-slate-100 p-1 rounded-xl">
             {['Harian', 'Mingguan', 'Bulanan', 'Tahunan'].map(tf => (
               <button
@@ -222,7 +203,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             ))}
           </div>
 
-          {/* Dropdown Pilih Program */}
           <select
             value={selectedProgramId}
             onChange={(e) => setSelectedProgramId(e.target.value)}
@@ -239,7 +219,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
       </div>
 
-      {/* SUB-MENU NAVIGASI TAB */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         <button
           onClick={() => setActiveSubTab('form')}
@@ -273,11 +252,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         )}
       </div>
 
-      {/* --- KONTEN TAB 1: FORM CEKLIS --- */}
       {activeSubTab === 'form' && (
         <form onSubmit={handleSubmitCeklis} className="space-y-6">
-          
-          {/* Panel Informasi Pengawasan */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
               <CheckSquare size={18} className="text-blue-600" /> Informasi Pengawasan & Guru Terkait
@@ -329,7 +305,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             </div>
           </div>
 
-          {/* Panel Kategori & Butir Ceklis Dinamis */}
           <div className="space-y-4">
             {kategoriList.map(kat => (
               <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -358,7 +333,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             ))}
           </div>
 
-          {/* Catatan & Tombol Simpan */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Catatan / Temuan Khusus:</label>
@@ -378,7 +352,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </form>
       )}
 
-      {/* --- KONTEN TAB 2: RIWAYAT --- */}
       {activeSubTab === 'riwayat' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
@@ -419,7 +392,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
       )}
 
-      {/* --- KONTEN TAB 3: HASIL REALISASI --- */}
       {activeSubTab === 'realisasi' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -442,14 +414,11 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
       )}
 
-      {/* --- KONTEN TAB 4: CUSTOMIZE FORM --- */}
       {activeSubTab === 'customize' && (
         <div className="space-y-6">
-          
-          {/* Pengaturan Kolom Informasi */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-800">Pengaturan Kolom Informasi Pengawasan</h3>
-            <p className="text-xs text-slate-500">Centang modul yang ingin ditampilkan pada form kegiatan ini (Contoh: Sarpras bisa menghilangkan kolom kelas/mapel).</p>
+            <p className="text-xs text-slate-500">Centang modul yang ingin ditampilkan pada form kegiatan ini.</p>
             
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-2">
               <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
@@ -473,7 +442,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             </div>
           </div>
 
-          {/* Tambah Kategori Baru */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-800">Tambah Kategori & Indikator Ceklis</h3>
             
@@ -496,7 +464,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             </form>
           </div>
 
-          {/* Daftar Kategori & Butir Aktif Saat Ini */}
           <div className="space-y-4">
             {kategoriList.map(kat => (
               <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -514,7 +481,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                   ))}
                 </div>
 
-                {/* Input Tambah Butir ke Kategori Ini */}
                 <div className="flex gap-2 pt-2">
                   <input 
                     type="text" 
@@ -530,10 +496,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               </div>
             ))}
           </div>
-
         </div>
       )}
-
     </div>
   );
 }
