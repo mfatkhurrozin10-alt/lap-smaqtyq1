@@ -17,12 +17,13 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   // Timeframe Filter: Harian, Mingguan, Bulanan, Tahunan
   const [timeframe, setTimeframe] = useState('Harian');
 
-  // State Pilihan Dropdown Kelas & Guru
-  const [kelasList, setKelasList] = useState<any[]>([]);
+  // State Pilihan Dropdown dari Tabel Supabase (Guru, Kelas, Mapel)
   const [guruList, setGuruList] = useState<any[]>([]);
+  const [kelasList, setKelasList] = useState<any[]>([]);
+  const [mapelList, setMapelList] = useState<any[]>([]);
 
   const [formInput, setFormInput] = useState({
-    petugas_pj: 'Ummi Mukhoyyaroh, M.Pd.',
+    petugas_pj: 'Ustadz / Ustadzah Pemantau',
     guru_target: '',
     mapel_kelas: '',
     kelas_dipilih: '',
@@ -50,30 +51,41 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // 1. Ambil data Divisi & Program beserta relasi indikator_iku
       const { data: divList } = await supabase.from('divisi').select('*');
       const kurikulumDiv = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('kurikulum')) || divList?.[0];
 
       if (kurikulumDiv) {
         setDivisiData(kurikulumDiv);
-        // Ambil program kegiatan beserta data IKU terkaitnya
         const { data: prog } = await supabase.from('program_kegiatan').select('*, indikator_iku(kode_iku, judul_iku)').eq('divisi_id', kurikulumDiv.id);
         if (prog && prog.length > 0) {
           setProgramList(prog);
-          // Set program pertama yang sesuai timeframe atau default ke index 0
           const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
           const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
           setSelectedProgramId(targetProg.id);
         }
       }
 
-      setKelasList(['Kelas 7-A', 'Kelas 7-B', 'Kelas 8-A', 'Kelas 8-B', 'Kelas 9-A', 'Kelas 9-B']);
-      setGuruList([
-        'Ummi Mukhoyyaroh, M.Pd.',
-        'Ella Setyana, S.Pd.',
-        'Alfina Lailis Sa`adah, S.Pd.',
-        'Mahda Laila Arnumukti, S.Kom',
-        'Ani Nur Kholifah, S.Pd.'
-      ]);
+      // 2. Ambil data GURU langsung dari tabel 'guru' Supabase
+      const { data: dbGuru } = await supabase.from('guru').select('id, nama');
+      if (dbGuru && dbGuru.length > 0) {
+        setGuruList(dbGuru);
+      }
+
+      // 3. Ambil data MAPEL langsung dari tabel 'mapel' Supabase
+      const { data: dbMapel } = await supabase.from('mapel').select('id, nama_mapel, kode');
+      if (dbMapel && dbMapel.length > 0) {
+        setMapelList(dbMapel);
+      }
+
+      // 4. Ambil data KELAS unik dari tabel 'guru_mapel' atau fallback standar
+      const { data: dbKelas } = await supabase.from('guru_mapel').select('kelas');
+      if (dbKelas && dbKelas.length > 0) {
+        const uniqueKelas = Array.from(new Set(dbKelas.map((k: any) => k.kelas))).filter(Boolean);
+        setKelasList(uniqueKelas);
+      } else {
+        setKelasList(['Kelas 7-A', 'Kelas 7-B', 'Kelas 8-A', 'Kelas 8-B', 'Kelas 9-A', 'Kelas 9-B']);
+      }
 
     } catch (err) {
       console.error(err);
@@ -86,7 +98,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     fetchData();
   }, [timeframe]);
 
-  // Ambil detail program (kategori, butir ceklis, dan log riwayat) saat program dipilih
   const fetchProgramDetail = async () => {
     if (!selectedProgramId) return;
     try {
@@ -139,7 +150,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       const { error } = await supabase.from('divisi_log_pengawasan').insert([payload]);
       if (error) throw error;
 
-      if (showNotification) showNotification('Form ceklis berhasil disimpan ke database!', 'success');
+      if (showNotification) showNotification(`Data laporan ${timeframe.toLowerCase()} berhasil disimpan!`, 'success');
       setCheckedItems({});
       setFormInput({ ...formInput, guru_target: '', mapel_kelas: '', kelas_dipilih: '', catatan: '' });
       fetchProgramDetail();
@@ -198,7 +209,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     return <div className="p-12 text-center text-slate-500 font-medium">Memuat data Divisi Kurikulum...</div>;
   }
 
-  // Filter program berdasarkan timeframe yang dipilih di atas
   const filteredProgramsByTime = programList.filter((p: any) => !p.timeframe || p.timeframe.toLowerCase() === timeframe.toLowerCase());
   const selectedProgramObj = programList.find((p: any) => p.id === selectedProgramId);
 
@@ -213,7 +223,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Filter Waktu: Harian, Mingguan, Bulanan, Tahunan */}
+          {/* Tombol Filter Waktu */}
           <div className="flex bg-slate-100 p-1 rounded-xl">
             {['Harian', 'Mingguan', 'Bulanan', 'Tahunan'].map(tf => (
               <button
@@ -226,7 +236,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             ))}
           </div>
 
-          {/* DROPDOWN PILIHAN PROGRAM BERDASARKAN TIMEFRAME */}
+          {/* Dropdown Program Berdasarkan Timeframe */}
           <select
             value={selectedProgramId}
             onChange={(e) => setSelectedProgramId(e.target.value)}
@@ -247,13 +257,13 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
       </div>
 
-      {/* SUB-MENU NAVIGASI TAB & BADGE INDIKATOR IKU TERKAIT */}
+      {/* SUB-MENU TAB & INDIKATOR IKU */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         <button
           onClick={() => setActiveSubTab('form')}
           className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'form' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
         >
-          <CheckSquare size={16} /> Form Ceklis
+          <CheckSquare size={16} /> Form Ceklis ({timeframe})
         </button>
         <button
           onClick={() => setActiveSubTab('riwayat')}
@@ -274,7 +284,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
           <Settings size={16} /> Customize Form
         </button>
 
-        {/* KETERANGAN INDIKATOR IKU TERKAIT (MUNCUL OTOMATIS) */}
         {selectedProgramObj?.indikator_iku && (
           <div className="ml-auto px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm truncate max-w-md">
             <span className="text-blue-600 mr-1">{selectedProgramObj.indikator_iku.kode_iku}:</span> 
@@ -288,41 +297,54 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         <form onSubmit={handleSubmitCeklis} className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
-              <CheckSquare size={18} className="text-blue-600" /> Informasi Pengawasan & Guru Terkait
+              <CheckSquare size={18} className="text-blue-600" /> Informasi Pengawasan & Guru Terkait ({timeframe})
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {formConfig.show_petugas && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Petugas Pemantau (PJ):</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadz / Petugas Pemantau (PJ):</label>
                   <input type="text" value={formInput.petugas_pj} onChange={e => setFormInput({...formInput, petugas_pj: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" required />
                 </div>
               )}
 
+              {/* DROPDOWN GURU DIAMBIL DARI TABEL 'guru' SUPABASE */}
               {formConfig.show_guru && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadzah / Guru Pengampu:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadz / Guru Pengampu:</label>
                   <select 
                     value={formInput.guru_target} 
                     onChange={e => setFormInput({...formInput, guru_target: e.target.value})} 
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none" 
                     required
                   >
-                    <option value="">-- Pilih Guru Pengampu --</option>
-                    {guruList.map((guru, idx) => (
-                      <option key={idx} value={guru}>{guru}</option>
+                    <option value="">-- Pilih Ustadz / Guru --</option>
+                    {guruList.map((g: any) => (
+                      <option key={g.id} value={g.nama}>{g.nama}</option>
                     ))}
                   </select>
                 </div>
               )}
 
+              {/* DROPDOWN MAPEL DIAMBIL DARI TABEL 'mapel' SUPABASE */}
               {formConfig.show_mapel && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mata Pelajaran:</label>
-                  <input type="text" placeholder="Ketik mapel (misal: Fiqih)..." value={formInput.mapel_kelas} onChange={e => setFormInput({...formInput, mapel_kelas: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+                  <select 
+                    value={formInput.mapel_kelas} 
+                    onChange={e => setFormInput({...formInput, mapel_kelas: e.target.value})} 
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none"
+                    required
+                  >
+                    <option value="">-- Pilih Mata Pelajaran --</option>
+                    {mapelList.map((m: any) => (
+                      <option key={m.id} value={m.nama_mapel}>{m.nama_mapel} ({m.kode})</option>
+                    ))}
+                  </select>
                 </div>
               )}
 
+              {/* DROPDOWN KELAS DIAMBIL DARI TABEL GURU_MAPEL / SISWA */}
               {formConfig.show_kelas && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kelas:</label>
@@ -333,7 +355,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                     required
                   >
                     <option value="">-- Pilih Kelas --</option>
-                    {kelasList.map((kls, idx) => (
+                    {kelasList.map((kls: string, idx: number) => (
                       <option key={idx} value={kls}>{kls}</option>
                     ))}
                   </select>
@@ -402,7 +424,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             </div>
             <div className="flex justify-end">
               <button type="submit" className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all">
-                Kirim & Simpan Pengawasan
+                Kirim & Simpan Pengawasan ({timeframe})
               </button>
             </div>
           </div>
@@ -413,7 +435,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       {activeSubTab === 'riwayat' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-bold text-slate-800">Log Riwayat Pengawasan ({riwayatList.length} Data)</h3>
+            <h3 className="font-bold text-slate-800">Log Riwayat Pengawasan ({timeframe}) - {riwayatList.length} Data</h3>
             <button onClick={() => window.print()} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors">
               <Printer size={14} /> Cetak Laporan
             </button>
@@ -426,7 +448,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                   <th className="px-6 py-4">No</th>
                   <th className="px-6 py-4">Waktu</th>
                   <th className="px-6 py-4">Petugas (PJ)</th>
-                  <th className="px-6 py-4">Guru / Target</th>
+                  <th className="px-6 py-4">Ustadz / Target</th>
                   <th className="px-6 py-4">Mapel / Kelas</th>
                   <th className="px-6 py-4">Skor</th>
                   <th className="px-6 py-4">Catatan</th>
@@ -435,7 +457,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               <tbody className="divide-y divide-slate-100">
                 {riwayatList.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-12 text-slate-400">Belum ada riwayat pengawasan untuk program ini.</td>
+                    <td colSpan={7} className="text-center py-12 text-slate-400">Belum ada riwayat pengawasan untuk program {timeframe} ini.</td>
                   </tr>
                 ) : (
                   riwayatList.map((item: any, idx: number) => (
@@ -460,9 +482,9 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       {activeSubTab === 'realisasi' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Target Resmi IKU</p>
+            <p className="text-xs font-bold text-slate-400 uppercase">Target Resmi IKU ({timeframe})</p>
             <h3 className="text-3xl font-black text-slate-900">100%</h3>
-            <p className="text-xs text-slate-500">Target indikator kinerja utama divisi</p>
+            <p className="text-xs text-slate-500">Target indikator kinerja utama program</p>
           </div>
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
             <p className="text-xs font-bold text-slate-400 uppercase">Realisasi Tercapai</p>
@@ -483,7 +505,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       {activeSubTab === 'customize' && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <h3 className="font-bold text-slate-800">Pengaturan Kolom Informasi Pengawasan</h3>
+            <h3 className="font-bold text-slate-800">Pengaturan Kolom Informasi Pengawasan ({timeframe})</h3>
             <p className="text-xs text-slate-500">Centang modul yang ingin ditampilkan pada form kegiatan program ini.</p>
             
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-2">
@@ -491,7 +513,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 <input type="checkbox" checked={formConfig.show_petugas} onChange={e => setFormConfig({...formConfig, show_petugas: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Petugas (PJ)
               </label>
               <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={formConfig.show_guru} onChange={e => setFormConfig({...formConfig, show_guru: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Guru Pengampu
+                <input type="checkbox" checked={formConfig.show_guru} onChange={e => setFormConfig({...formConfig, show_guru: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Ustadz / Guru Pengampu
               </label>
               <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
                 <input type="checkbox" checked={formConfig.show_mapel} onChange={e => setFormConfig({...formConfig, show_mapel: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Mata Pelajaran
