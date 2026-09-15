@@ -116,7 +116,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     }));
   };
 
-  // FUNGSI SIMPAN & EDIT YANG DIOPTIMALKAN
+  // FUNGSI SIMPAN & EDIT (MENGGUNAKAN MATCH AGAR AMAN DARI ERROR TYPESCRIPT)
   const handleSaveAttendance = async () => {
     const studentsInClass = siswaList.filter(s => s.kelas?.trim() === selectedClass);
     
@@ -138,14 +138,14 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
         };
       });
 
-      // Menggunakan pendekatan iterasi satuan (Hapus data lama siswa di tanggal tersebut, lalu insert baru)
-      // Cara ini 100% aman dan tidak bergantung pada konfigurasi constraint database tertentu.
+      // Menggunakan .match() dengan as any untuk menghindari error tipe data delete di Supabase
       for (const item of payloadList) {
-        // Hapus presensi lama siswa ini di tanggal yang sama
-        await supabase.from('kehadiran').delete().eq('tanggal', item.tanggal).eq('nisn', item.nisn);
+        await (supabase.from('kehadiran').delete() as any).match({
+          tanggal: item.tanggal,
+          nisn: item.nisn
+        });
       }
 
-      // Masukkan data baru
       const { error } = await supabase.from('kehadiran').insert(payloadList);
       if (error) throw error;
       
@@ -226,6 +226,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     });
   }, [siswaList, kehadiranList, availableClasses]);
 
+  // Statistik Bulanan Global (digunakan pada card rekap bulanan)
   const monthlyGlobalStats = useMemo(() => monthlyData.reduce((acc, curr) => ({
     hadir: acc.hadir + curr.hadir, sakit: acc.sakit + curr.sakit, izin: acc.izin + curr.izin, alfa: acc.alfa + curr.alfa
   }), { hadir: 0, sakit: 0, izin: 0, alfa: 0 }), [monthlyData]);
@@ -479,9 +480,14 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
 
           {activeTab === 'rekap_bulanan' && (
             <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Bulan Rekapitulasi</label>
-                <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full sm:w-72 mt-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none" />
+              <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="w-full sm:w-72">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Bulan Rekapitulasi</label>
+                  <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full mt-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none" />
+                </div>
+                <div className="text-xs text-slate-500 font-medium">
+                  Akumulasi Hadir Bulan Ini: <strong className="text-emerald-600">{monthlyGlobalStats.hadir}</strong> sesi
+                </div>
               </div>
 
               <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
