@@ -1,5 +1,5 @@
 // src/views/KelolaNilaiView.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase, getCurrentMonthName } from '../services/supabase';
 import { Icons } from '../Icons';
 import { ConfirmModal } from '../components/UIComponents';
