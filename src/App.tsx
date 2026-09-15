@@ -3,17 +3,25 @@ import { useState } from 'react';
 import DashboardLayout from './components/DashboardLayout';
 import { Notification } from './components/UIComponents';
 
-// Mengimpor View 
+// Mengimpor View Utama & Divisi Kerja
 import KelolaNilaiView from './views/KelolaNilaiView';
-import SistemAbsensiView from './views/SistemAbsensiView'; // <-- 1. Import view absensi yang baru digabung
+import SistemAbsensiView from './views/SistemAbsensiView'; 
 import KelolaTabunganAdminView from './views/KelolaTabunganAdminView';
 import KelolaPoinAdminView from './views/KelolaPoinAdminView';
 import KelolaDivisiView from './views/KelolaDivisiView';
-import DivisiKurikulumView from './views/DivisiKurikulumView';
 import LaporanIkuUnitView from './views/LaporanIkuUnitView';
 
+// Mengimpor Masing-Masing View Divisi Kerja (IKU)
+import DivisiKurikulumView from './views/DivisiKurikulumView';
+import DivisiKesiswaanView from './views/DivisiKesiswaanView';
+import DivisiHumasView from './views/DivisiHumasView';
+import DivisiSarprasView from './views/DivisiSarprasView';
+import DivisiBahasaView from './views/DivisiBahasaView';
+import DivisiTataUsahaView from './views/DivisiTataUsahaView';
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState('divisi-kurikulum');
+  // Diubah ke 'dashboard-pantauan' agar menjadi halaman utama saat pertama kali dibuka/direload
+  const [activeTab, setActiveTab] = useState('dashboard-pantauan');
   const [notification, setNotification] = useState({ message: '', type: '' });
 
   const showNotification = (message: string, type: string) => {
@@ -34,7 +42,7 @@ export default function App() {
           <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-100 h-full flex items-center justify-center">
             <div className="text-center">
               <h2 className="text-xl font-bold text-slate-800">Dashboard Pantauan Sekolah</h2>
-              <p className="text-slate-500 mt-2">Tampilan Dashboard utama akan didesain di sini...</p>
+              <p className="text-slate-500 mt-2">Tampilan Dashboard utama sistem...</p>
             </div>
           </div>
         );
@@ -46,7 +54,6 @@ export default function App() {
         return <KelolaNilaiView user={currentUser} showNotification={showNotification} />;
       
       case 'presensi-absensi':
-        // 2. Hubungkan 'presensi-absensi' ke komponen SistemAbsensiView
         return <SistemAbsensiView user={currentUser} showNotification={showNotification} />;
 
       case 'tabungan-santri':
@@ -58,22 +65,24 @@ export default function App() {
       case 'kelola-divisi':
         return <KelolaDivisiView showNotification={showNotification} />;
 
+      // 6 Divisi Kerja (IKU) Terpisah Per File
       case 'divisi-kurikulum':
         return <DivisiKurikulumView showNotification={showNotification} />;
 
       case 'divisi-kesiswaan':
+        return <DivisiKesiswaanView showNotification={showNotification} />;
+
       case 'divisi-humas':
+        return <DivisiHumasView showNotification={showNotification} />;
+
       case 'divisi-sarpras':
+        return <DivisiSarprasView showNotification={showNotification} />;
+
       case 'divisi-bahasa':
+        return <DivisiBahasaView showNotification={showNotification} />;
+
       case 'divisi-tata-usaha':
-        return (
-          <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-100 h-full flex items-center justify-center">
-            <div className="text-center">
-              <h2 className="text-xl font-bold text-slate-800 uppercase tracking-wide">Sedang Dalam Pengembangan</h2>
-              <p className="text-slate-500 mt-2">Menu divisi ini akan segera menyusul dengan sistem yang serupa.</p>
-            </div>
-          </div>
-        );
+        return <DivisiTataUsahaView showNotification={showNotification} />;
 
       default:
         return (
