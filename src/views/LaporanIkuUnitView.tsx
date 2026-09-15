@@ -41,7 +41,7 @@ export default function LaporanIkuUnitView({}: any) {
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
-      // Ambil program kegiatan & relasi indikator_iku
+      // Ambil program kegiatan beserta relasi indikator_iku yang akurat
       const { data: progList, error: progErr } = await supabase
         .from('program_kegiatan')
         .select(`
@@ -84,7 +84,7 @@ export default function LaporanIkuUnitView({}: any) {
         flatRows.push({
           no: counter++,
           kode_iku: iku?.kode_iku || 'IKU-UNIT',
-          judul_iku: iku?.judul_iku || `Indikator untuk ${prog.nama_program}`,
+          judul_iku: iku?.judul_iku || 'Belum ada IKU terikat',
           target: prog.target_pencapaian || iku?.target_deskripsi || '100%',
           realisasi: `${avgSkor}%`,
           yayasan: '', // Dikosongkan sesuai permintaan
@@ -165,14 +165,14 @@ export default function LaporanIkuUnitView({}: any) {
         </div>
       </div>
 
-      {/* TABEL REKAPITULASI IKU */}
+      {/* TABEL REKAPITULASI IKU SESUAI URUTAN HEADER YANG DIMINTA */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm border-collapse">
             <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               <tr>
                 <th className="px-5 py-4 w-12 text-center border-r border-slate-200">NO</th>
-                <th className="px-6 py-4 w-72 border-r border-slate-200">INDIKATOR (IKU)</th>
+                <th className="px-6 py-4 w-64 border-r border-slate-200">INDIKATOR (IKU)</th>
                 <th className="px-5 py-4 w-28 border-r border-slate-200">TARGET</th>
                 <th className="px-5 py-4 w-28 bg-blue-50/80 text-blue-900 border-r border-slate-200">REALISASI</th>
                 <th className="px-5 py-4 w-28 bg-emerald-50/80 text-emerald-900 border-r border-slate-200">YAYASAN</th>
@@ -186,17 +186,17 @@ export default function LaporanIkuUnitView({}: any) {
               {rekapRows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="text-center py-12 text-slate-400">
-                    Belum ada data indikator IKU terdaftar pada unit <span className="font-bold text-slate-600">{currentDivisiObj?.nama_divisi}</span>.
+                    Belum ada data program kegiatan terdaftar pada unit <span className="font-bold text-slate-600">{currentDivisiObj?.nama_divisi}</span>.
                   </td>
                 </tr>
               ) : (
                 rekapRows.map((row: any, idx: number) => (
                   <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
                     
-                    {/* NO */}
+                    {/* 1. NO */}
                     <td className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100">{row.no}</td>
                     
-                    {/* INDIKATOR (IKU) - Sesuai dengan program masing-masing */}
+                    {/* 2. INDIKATOR (IKU) */}
                     <td className="px-6 py-5 border-r border-slate-100">
                       <div className="space-y-1.5">
                         <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100 inline-block">
@@ -208,32 +208,32 @@ export default function LaporanIkuUnitView({}: any) {
                       </div>
                     </td>
 
-                    {/* TARGET - Sesuai target program */}
+                    {/* 3. TARGET */}
                     <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100">
                       {row.target}
                     </td>
 
-                    {/* REALISASI (Biru Muda) */}
+                    {/* 4. REALISASI (Biru Muda) */}
                     <td className={`px-5 py-5 font-black text-sm bg-blue-50/40 border-r border-slate-100 whitespace-nowrap ${getScoreTextColor(row.realisasi)}`}>
                       {row.realisasi}
                     </td>
 
-                    {/* YAYASAN (Hijau Muda - Dikosongkan) */}
+                    {/* 5. YAYASAN (Hijau Muda - Dikosongkan) */}
                     <td className="px-5 py-5 font-black text-sm bg-emerald-50/40 text-emerald-700 border-r border-slate-100 whitespace-nowrap">
                       {row.yayasan}
                     </td>
 
-                    {/* KEGIATAN */}
+                    {/* 6. KEGIATAN (Nama Program) */}
                     <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
                       {row.kegiatan}
                     </td>
 
-                    {/* WAKTU */}
+                    {/* 7. WAKTU (Timeframe) */}
                     <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium">
                       {row.waktu}
                     </td>
 
-                    {/* CATATAN */}
+                    {/* 8. CATATAN */}
                     <td className="px-6 py-5 border-r border-slate-100">
                       <div className="space-y-2">
                         {row.logs.length === 0 ? (
@@ -252,7 +252,7 @@ export default function LaporanIkuUnitView({}: any) {
                       </div>
                     </td>
 
-                    {/* AKSI */}
+                    {/* 9. AKSI */}
                     <td className="px-5 py-5 text-center">
                       <button 
                         onClick={() => alert(`Edit / Evaluasi Kegiatan: ${row.kegiatan}`)}
