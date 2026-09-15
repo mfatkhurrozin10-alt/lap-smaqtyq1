@@ -41,7 +41,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
   const itemsPerPage = 10;
 
-  // Konfigurasi Kolom & Label Kustom
+  // Konfigurasi Kolom, Label, Tipe Input ('dropdown' | 'input'), dan Opsi Pilihan Kustom
   const [formConfig, setFormConfig] = useState<any>({
     show_petugas: true,
     show_guru: true,
@@ -54,12 +54,25 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     label_mapel: 'Program / Kegiatan',
     label_kelas: 'Kelas',
     label_jam: 'Waktu / Sesi',
-    label_santri_absen: 'Santri Absen / Kendala'
+    label_santri_absen: 'Santri Absen / Kendala',
+    // Tipe input: 'input' (teks singkat) atau 'dropdown' (pilihan)
+    type_petugas: 'input',
+    type_guru: 'dropdown',
+    type_mapel: 'dropdown',
+    type_kelas: 'dropdown',
+    type_jam: 'input',
+    type_santri_absen: 'input',
+    // Opsi kustom untuk yang bertipe dropdown (disimpan dalam bentuk string array atau comma-separated)
+    options_guru: [],
+    options_mapel: [],
+    options_kelas: []
   });
 
-  // State untuk Modal Edit Label Kolom
-  const [editingColumn, setEditingColumn] = useState<string | null>(null);
-  const [tempLabelInput, setTempLabelInput] = useState('');
+  // State untuk Modal Edit Konfigurasi Kolom (Label, Tipe, & Opsi)
+  const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
+  const [tempLabel, setTempLabel] = useState('');
+  const [tempType, setTempType] = useState('dropdown');
+  const [tempOptionsText, setTempOptionsText] = useState(''); // dipisah koma untuk opsi dropdown
 
   const [newKategoriNama, setNewKategoriNama] = useState('');
   const [newKategoriTipe, setNewKategoriTipe] = useState('Negatif (Dicentang jika bermasalah)');
@@ -295,32 +308,49 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     }
   };
 
-  // Fungsi Menyimpan Label Kolom Kustom
-  const handleSaveColumnLabel = async (columnKey: string) => {
-    const labelFieldMap: any = {
-      show_petugas: 'label_petugas',
-      show_guru: 'label_guru',
-      show_mapel: 'label_mapel',
-      show_kelas: 'label_kelas',
-      show_jam: 'label_jam',
-      show_santri_absen: 'label_santri_absen'
+  // Fungsi Menyimpan Pengaturan Kolom Kustom (Label, Tipe Input, & Opsi Dropdown)
+  const handleSaveColumnCustomize = async (columnKey: string) => {
+    const mapConfig: any = {
+      show_petugas: { label: 'label_petugas', type: 'type_petugas', opts: 'options_petugas' },
+      show_guru: { label: 'label_guru', type: 'type_guru', opts: 'options_guru' },
+      show_mapel: { label: 'label_mapel', type: 'type_mapel', opts: 'options_mapel' },
+      show_kelas: { label: 'label_kelas', type: 'type_kelas', opts: 'options_kelas' },
+      show_jam: { label: 'label_jam', type: 'type_jam', opts: 'options_jam' },
+      show_santri_absen: { label: 'label_santri_absen', type: 'type_santri_absen', opts: 'options_santri_absen' },
     };
 
-    const dbField = labelFieldMap[columnKey];
-    if (!dbField || !selectedProgramId) return;
+    const targetMap = mapConfig[columnKey];
+    if (!targetMap || !selectedProgramId) return;
 
-    const updatedConfig = { ...formConfig, [dbField]: tempLabelInput };
+    // Ubah text opsi koma menjadi array
+    const optionsArray = tempOptionsText.split(',').map(s => s.trim()).filter(Boolean);
+
+    const updatedConfig = { 
+      ...formConfig, 
+      [targetMap.label]: tempLabel, 
+      [targetMap.type]: tempType,
+      [targetMap.opts]: optionsArray
+    };
     setFormConfig(updatedConfig);
 
     try {
       const { data: existing } = await supabase.from('divisi_form_config').select('id').eq('program_id', selectedProgramId);
       if (existing && existing.length > 0) {
-        await supabase.from('divisi_form_config').update({ [dbField]: tempLabelInput }).eq('program_id', selectedProgramId);
+        await supabase.from('divisi_form_config').update({ 
+          [targetMap.label]: tempLabel, 
+          [targetMap.type]: tempType,
+          [targetMap.opts]: optionsArray
+        }).eq('program_id', selectedProgramId);
       } else {
-        await supabase.from('divisi_form_config').insert([{ program_id: selectedProgramId, [dbField]: tempLabelInput }]);
+        await supabase.from('divisi_form_config').insert([{ 
+          program_id: selectedProgramId, 
+          [targetMap.label]: tempLabel, 
+          [targetMap.type]: tempType,
+          [targetMap.opts]: optionsArray
+        }]);
       }
-      if (showNotification) showNotification('Label kolom berhasil diperbarui!', 'success');
-      setEditingColumn(null);
+      if (showNotification) showNotification('Pengaturan kolom berhasil diperbarui!', 'success');
+      setEditingColumnKey(null);
     } catch (err: any) {
       if (showNotification) showNotification(err.message, 'error');
     }
@@ -369,6 +399,52 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
   const currentRiwayatPageData = filteredRiwayatByMonth.slice(startIndex, startIndex + itemsPerPage);
 
   const averageRealisasi = riwayatList.length > 0 ? (riwayatList.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen), 0) / riwayatList.length) : 0;
+
+  // Render komponen dinamis untuk input (bisa dropdown atau input teks singkat)
+  const renderDynamicInput = (
+    showKey: string, 
+    labelKey: string, 
+    typeKey: string, 
+    optsKey: string, 
+    valueState: string, 
+    onChangeVal: (val: string) => void,
+    defaultOpts: string[]
+  ) => {
+    if (!formConfig[showKey]) return null;
+
+    const label = formConfig[labelKey];
+    const inputType = formConfig[typeKey] || 'input'; // 'input' atau 'dropdown'
+    const customOpts = formConfig[optsKey];
+    const optionsList = (customOpts && customOpts.length > 0) ? customOpts : defaultOpts;
+
+    return (
+      <div>
+        <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}:</label>
+        {inputType === 'dropdown' ? (
+          <select 
+            value={valueState} 
+            onChange={e => onChangeVal(e.target.value)} 
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer" 
+            required
+          >
+            <option value="">-- Pilih {label} --</option>
+            {optionsList.map((opt: string, idx: number) => (
+              <option key={idx} value={opt}>{opt}</option>
+            ))}
+          </select>
+        ) : (
+          <input 
+            type="text" 
+            value={valueState} 
+            onChange={e => onChangeVal(e.target.value)} 
+            placeholder={`Masukkan ${label}`} 
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800 placeholder:text-slate-400" 
+            required 
+          />
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
@@ -460,84 +536,12 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {formConfig.show_petugas && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_petugas}:</label>
-                  <input 
-                    type="text" 
-                    value={formInput.petugas_pj} 
-                    onChange={e => setFormInput({...formInput, petugas_pj: e.target.value})} 
-                    placeholder="Masukan Nama" 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800 placeholder:text-slate-400" 
-                    required 
-                  />
-                </div>
-              )}
-
-              {formConfig.show_guru && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_guru}:</label>
-                  <select 
-                    value={formInput.guru_target} 
-                    onChange={e => setFormInput({...formInput, guru_target: e.target.value})} 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer" 
-                    required
-                  >
-                    <option value="">-- Pilih Target / Guru --</option>
-                    {guruList.map((g: any) => (
-                      <option key={g.id} value={g.nama}>{g.nama}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {formConfig.show_mapel && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_mapel}:</label>
-                  <select 
-                    value={formInput.mapel_kelas} 
-                    onChange={e => setFormInput({...formInput, mapel_kelas: e.target.value})} 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
-                    required
-                  >
-                    <option value="">-- Pilih Opsi --</option>
-                    {mapelList.map((m: any) => (
-                      <option key={m.id} value={m.nama_mapel}>{m.nama_mapel} ({m.kode})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {formConfig.show_kelas && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_kelas}:</label>
-                  <select 
-                    value={formInput.kelas_dipilih} 
-                    onChange={e => setFormInput({...formInput, kelas_dipilih: e.target.value})} 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
-                    required
-                  >
-                    <option value="">-- Pilih Kelas --</option>
-                    {kelasList.map((kls: string, idx: number) => (
-                      <option key={idx} value={kls}>{kls}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {formConfig.show_jam && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_jam}:</label>
-                  <input type="text" value={formInput.jam_pembelajaran} onChange={e => setFormInput({...formInput, jam_pembelajaran: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800" />
-                </div>
-              )}
-
-              {formConfig.show_santri_absen && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{formConfig.label_santri_absen}:</label>
-                  <input type="text" value={formInput.santri_absen} onChange={e => setFormInput({...formInput, santri_absen: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800" />
-                </div>
-              )}
+              {renderDynamicInput('show_petugas', 'label_petugas', 'type_petugas', 'options_petugas', formInput.petugas_pj, (val) => setFormInput({...formInput, petugas_pj: val}), [])}
+              {renderDynamicInput('show_guru', 'label_guru', 'type_guru', 'options_guru', formInput.guru_target, (val) => setFormInput({...formInput, guru_target: val}), guruList.map(g => g.nama))}
+              {renderDynamicInput('show_mapel', 'label_mapel', 'type_mapel', 'options_mapel', formInput.mapel_kelas, (val) => setFormInput({...formInput, mapel_kelas: val}), mapelList.map(m => m.nama_mapel))}
+              {renderDynamicInput('show_kelas', 'label_kelas', 'type_kelas', 'options_kelas', formInput.kelas_dipilih, (val) => setFormInput({...formInput, kelas_dipilih: val}), kelasList)}
+              {renderDynamicInput('show_jam', 'label_jam', 'type_jam', 'options_jam', formInput.jam_pembelajaran, (val) => setFormInput({...formInput, jam_pembelajaran: val}), ['1-2', '3-4', '5-6', '7-8'])}
+              {renderDynamicInput('show_santri_absen', 'label_santri_absen', 'type_santri_absen', 'options_santri_absen', formInput.santri_absen, (val) => setFormInput({...formInput, santri_absen: val}), ['Nihil', 'Izin', 'Sakit', 'Alfa'])}
             </div>
           </div>
 
@@ -868,9 +872,9 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
               <div>
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <Settings size={18} className="text-blue-600" /> PENGATURAN KOLOM & EDIT LABEL INFORMASI
+                  <Settings size={18} className="text-blue-600" /> PENGATURAN KOLOM, LABEL, & TIPE INPUTAN
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Centang modul yang ingin ditampilkan, atau klik ikon pensil untuk mengubah judul label kolom.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Centang modul yang ingin ditampilkan, atau klik ikon pensil untuk mengubah judul, tipe inputan (Dropdown / Teks Singkat), serta opsi pilihannya.</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-bold">
                 <button type="button" onClick={() => handleSelectAllConfig(true)} className="text-blue-600 hover:underline">Centang Semua</button>
@@ -881,15 +885,16 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
               {[
-                { key: 'show_petugas', defaultLabel: 'Petugas (PJ)', labelKey: 'label_petugas' },
-                { key: 'show_guru', defaultLabel: 'Wali Kelas / Guru Target', labelKey: 'label_guru' },
-                { key: 'show_mapel', defaultLabel: 'Program / Kegiatan', labelKey: 'label_mapel' },
-                { key: 'show_kelas', defaultLabel: 'Kelas', labelKey: 'label_kelas' },
-                { key: 'show_jam', defaultLabel: 'Waktu / Sesi', labelKey: 'label_jam' },
-                { key: 'show_santri_absen', defaultLabel: 'Santri Absen / Kendala', labelKey: 'label_santri_absen' },
+                { key: 'show_petugas', defaultLabel: 'Petugas (PJ)', labelKey: 'label_petugas', typeKey: 'type_petugas', optsKey: 'options_petugas' },
+                { key: 'show_guru', defaultLabel: 'Wali Kelas / Guru Target', labelKey: 'label_guru', typeKey: 'type_guru', optsKey: 'options_guru' },
+                { key: 'show_mapel', defaultLabel: 'Program / Kegiatan', labelKey: 'label_mapel', typeKey: 'type_mapel', optsKey: 'options_mapel' },
+                { key: 'show_kelas', defaultLabel: 'Kelas', labelKey: 'label_kelas', typeKey: 'type_kelas', optsKey: 'options_kelas' },
+                { key: 'show_jam', defaultLabel: 'Waktu / Sesi', labelKey: 'label_jam', typeKey: 'type_jam', optsKey: 'options_jam' },
+                { key: 'show_santri_absen', defaultLabel: 'Santri Absen / Kendala', labelKey: 'label_santri_absen', typeKey: 'type_santri_absen', optsKey: 'options_santri_absen' },
               ].map((item) => {
                 const currentLabel = formConfig[item.labelKey] || item.defaultLabel;
                 const isChecked = formConfig[item.key];
+                const inputType = formConfig[item.typeKey] || 'input';
 
                 return (
                   <div key={item.key} className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${isChecked ? 'border-blue-500 bg-blue-50/20 text-blue-900 shadow-2xs' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
@@ -900,14 +905,22 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
                         onChange={e => handleToggleConfigField(item.key, e.target.checked)} 
                         className="w-4 h-4 text-blue-600 rounded shrink-0" 
                       />
-                      <span className="text-sm font-medium truncate">{currentLabel}</span>
+                      <div className="truncate">
+                        <span className="text-sm font-medium block truncate">{currentLabel}</span>
+                        <span className="text-[10px] text-slate-400 capitalize">Tipe: {inputType === 'dropdown' ? 'Dropdown Pilihan' : 'Teks Singkat'}</span>
+                      </div>
                     </label>
                     
                     <button 
                       type="button"
-                      onClick={() => { setEditingColumn(item.key); setTempLabelInput(currentLabel); }}
+                      onClick={() => { 
+                        setEditingColumnKey(item.key); 
+                        setTempLabel(currentLabel); 
+                        setTempType(inputType);
+                        setTempOptionsText((formConfig[item.optsKey] || []).join(', '));
+                      }}
                       className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors shrink-0 ml-2"
-                      title="Edit Judul Kolom"
+                      title="Edit Kolom"
                     >
                       <Edit size={14} />
                     </button>
@@ -917,35 +930,64 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
             </div>
           </div>
 
-          {/* Modal Popup Edit Judul Kolom */}
-          {editingColumn && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-200">
-                <h3 className="text-base font-bold text-slate-800">Edit Judul / Label Kolom</h3>
-                <p className="text-xs text-slate-500">Masukkan nama label baru yang ingin ditampilkan pada form & tabel riwayat.</p>
+          {/* Modal Popup Edit Label, Tipe Input, dan Opsi Dropdown */}
+          {editingColumnKey && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-200">
+                <h3 className="text-base font-bold text-slate-800">Edit Konfigurasi Kolom Form</h3>
+                <p className="text-xs text-slate-500">Sesuaikan nama label, jenis inputan (Dropdown / Teks Singkat), serta daftar opsi pilihannya.</p>
                 
-                <input 
-                  type="text"
-                  value={tempLabelInput}
-                  onChange={e => setTempLabelInput(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 outline-none focus:border-blue-500"
-                  autoFocus
-                />
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Judul / Label Kolom:</label>
+                    <input 
+                      type="text"
+                      value={tempLabel}
+                      onChange={e => setTempLabel(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Jenis Inputan:</label>
+                    <select 
+                      value={tempType} 
+                      onChange={e => setTempType(e.target.value)} 
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="dropdown">Dropdown (Pilihan Menu)</option>
+                      <option value="input">Teks Singkat (Input Bebas)</option>
+                    </select>
+                  </div>
+
+                  {tempType === 'dropdown' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Opsi Dropdown (Pisahkan dengan koma):</label>
+                      <textarea 
+                        value={tempOptionsText}
+                        onChange={e => setTempOptionsText(e.target.value)}
+                        placeholder="Contoh: Opsi 1, Opsi 2, Opsi 3"
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none h-20 resize-none focus:border-blue-500"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">Ketik pilihan opsi dipisahkan tanda koma (`, `).</p>
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex justify-end gap-2 pt-2">
                   <button 
                     type="button" 
-                    onClick={() => setEditingColumn(null)} 
+                    onClick={() => setEditingColumnKey(null)} 
                     className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all"
                   >
                     Batal
                   </button>
                   <button 
                     type="button" 
-                    onClick={() => handleSaveColumnLabel(editingColumn)} 
+                    onClick={() => handleSaveColumnCustomize(editingColumnKey)} 
                     className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
                   >
-                    Simpan Label
+                    Simpan Perubahan
                   </button>
                 </div>
               </div>
