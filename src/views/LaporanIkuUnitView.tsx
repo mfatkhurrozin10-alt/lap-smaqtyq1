@@ -84,7 +84,8 @@ export default function LaporanIkuUnitView({}: any) {
           iku_id: ikuId || 'unknown',
           kode_iku: matchedIku?.kode_iku || prog.kode_iku || 'IKU-UNIT',
           judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.judul_iku || prog.nama_program,
-          target: matchedIku?.target_deskripsi || prog.target_pencapaian || '100%',
+          // Target prioritas diambil dari target_pencapaian program, jika kosong ambil dari target_deskripsi IKU
+          target: prog.target_pencapaian || matchedIku?.target_deskripsi || '100%',
           realisasi: `${avgSkor}%`,
           yayasan: '',
           kegiatan: prog.nama_program || '-',
@@ -96,7 +97,7 @@ export default function LaporanIkuUnitView({}: any) {
       // 5. Urutkan berdasarkan IKU agar yang sama berkumpul
       rawRows.sort((a, b) => a.kode_iku.localeCompare(b.kode_iku));
 
-      // 6. Hitung rowspan (penggabungan sel) untuk IKU yang sama
+      // 6. Hitung rowspan (penggabungan sel HANYA untuk kolom NO dan INDIKATOR saja)
       let finalRows: any[] = [];
       let groupCounter = 1;
       let i = 0;
@@ -222,6 +223,7 @@ export default function LaporanIkuUnitView({}: any) {
                   return (
                     <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
                       
+                      {/* NO (Merged) */}
                       {showMergedCell && (
                         <td 
                           rowSpan={row.rowSpan} 
@@ -231,6 +233,7 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
                       
+                      {/* INDIKATOR (IKU) (Merged) */}
                       {showMergedCell && (
                         <td 
                           rowSpan={row.rowSpan} 
@@ -247,31 +250,32 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
 
-                      {showMergedCell && (
-                        <td 
-                          rowSpan={row.rowSpan} 
-                          className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 bg-white align-middle"
-                        >
-                          {row.target}
-                        </td>
-                      )}
+                      {/* TARGET (Tidak di-merge, tampil per baris kegiatan) */}
+                      <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 whitespace-nowrap">
+                        {row.target}
+                      </td>
 
+                      {/* REALISASI */}
                       <td className={`px-5 py-5 font-black text-sm bg-blue-50/40 border-r border-slate-100 whitespace-nowrap ${getScoreTextColor(row.realisasi)}`}>
                         {row.realisasi}
                       </td>
 
+                      {/* YAYASAN */}
                       <td className="px-5 py-5 font-black text-sm bg-emerald-50/40 text-emerald-700 border-r border-slate-100 whitespace-nowrap">
                         {row.yayasan}
                       </td>
 
+                      {/* KEGIATAN */}
                       <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
                         {row.kegiatan}
                       </td>
 
+                      {/* WAKTU */}
                       <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium">
                         {row.waktu}
                       </td>
 
+                      {/* CATATAN */}
                       <td className="px-6 py-5 border-r border-slate-100">
                         <div className="space-y-2">
                           {row.logs.length === 0 ? (
@@ -290,6 +294,7 @@ export default function LaporanIkuUnitView({}: any) {
                         </div>
                       </td>
 
+                      {/* AKSI */}
                       <td className="px-5 py-5 text-center">
                         <button 
                           onClick={() => alert(`Edit / Evaluasi Kegiatan: ${row.kegiatan}`)}
