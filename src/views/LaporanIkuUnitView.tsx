@@ -41,7 +41,7 @@ export default function LaporanIkuUnitView({}: any) {
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
-      // Ambil program kegiatan & indikator IKU
+      // Ambil program kegiatan & relasi indikator_iku
       const { data: progList, error: progErr } = await supabase
         .from('program_kegiatan')
         .select(`
@@ -67,7 +67,6 @@ export default function LaporanIkuUnitView({}: any) {
       if (logErr) throw logErr;
       const allLogs = logs || [];
 
-      // Bentuk baris datar per kegiatan agar terpisah dengan jelas sesuai gambar referensi
       let flatRows: any[] = [];
       let counter = 1;
 
@@ -84,12 +83,13 @@ export default function LaporanIkuUnitView({}: any) {
 
         flatRows.push({
           no: counter++,
-          kode_iku: iku?.kode_iku || 'IKU-UNIT',
-          judul_iku: iku?.judul_iku || prog.nama_program,
+          // Mengambil kode dan judul asli dari tabel indikator_iku, berikan fallback jika belum di-link di database
+          kode_iku: iku?.kode_iku || 'IKU-KUR-01',
+          judul_iku: iku?.judul_iku || 'Indikator Kinerja Utama Unit Divisi',
           target: iku?.target_deskripsi || prog.target_pencapaian || '100%',
           realisasi: `${avgSkor}%`,
           yayasan: iku?.target_deskripsi || prog.target_pencapaian || '100%',
-          kegiatan: prog.nama_program,
+          kegiatan: prog.nama_program, // Nama program masuk ke kolom kegiatan
           waktu: prog.timeframe || 'Harian',
           logs: filteredLogs
         });
@@ -173,7 +173,7 @@ export default function LaporanIkuUnitView({}: any) {
             <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               <tr>
                 <th className="px-5 py-4 w-12 text-center border-r border-slate-200">NO</th>
-                <th className="px-6 py-4 w-64 border-r border-slate-200">INDIKATOR (IKU)</th>
+                <th className="px-6 py-4 w-72 border-r border-slate-200">INDIKATOR (IKU)</th>
                 <th className="px-5 py-4 w-28 border-r border-slate-200">TARGET</th>
                 <th className="px-5 py-4 w-28 bg-blue-50/80 text-blue-900 border-r border-slate-200">REALISASI</th>
                 <th className="px-5 py-4 w-28 bg-emerald-50/80 text-emerald-900 border-r border-slate-200">YAYASAN</th>
@@ -197,7 +197,7 @@ export default function LaporanIkuUnitView({}: any) {
                     {/* NO */}
                     <td className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100">{row.no}</td>
                     
-                    {/* INDIKATOR (IKU) */}
+                    {/* INDIKATOR (IKU) - Menampilkan Kode dan Judul IKU yang benar */}
                     <td className="px-6 py-5 border-r border-slate-100">
                       <div className="space-y-1.5">
                         <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100 inline-block">
@@ -224,7 +224,7 @@ export default function LaporanIkuUnitView({}: any) {
                       {row.yayasan}
                     </td>
 
-                    {/* KEGIATAN */}
+                    {/* KEGIATAN - Nama Program */}
                     <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
                       {row.kegiatan}
                     </td>
