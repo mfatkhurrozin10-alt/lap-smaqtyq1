@@ -41,22 +41,25 @@ export default function LaporanIkuUnitView({}: any) {
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
-      // 1. Ambil seluruh data indikator_iku terlebih dahulu untuk memastikan pemetaan akurat
-      const { data: ikuMaster } = await supabase.from('indikator_iku').select('*');
-      const ikuMapData = new Map();
-      (ikuMaster || []).forEach((item: any) => {
-        ikuMapData.set(item.id, item);
-      });
-
-      // 2. Ambil program kegiatan pada divisi ini
+      // Mengambil program kegiatan beserta relasi indikator_iku yang akurat dari database
       const { data: progList, error: progErr } = await supabase
         .from('program_kegiatan')
-        .select('*')
+        .select(`
+          id,
+          nama_program,
+          timeframe,
+          target_pencapaian,
+          indikator_iku (
+            id,
+            kode_iku,
+            judul_iku,
+            target_deskripsi
+          )
+        `)
         .eq('divisi_id', selectedDivisiId);
 
       if (progErr) throw progErr;
 
-      // 3. Ambil log pengawasan
       const { data: logs, error: logErr } = await supabase
         .from('divisi_log_pengawasan')
         .select('*');
@@ -68,37 +71,7 @@ export default function LaporanIkuUnitView({}: any) {
       let counter = 1;
 
       (progList || []).forEach((prog: any) => {
-        // Cari data IKU dari relasi properti atau id yang tersimpan di program kegiatan
-        let matchedIku = null;
-        if (prog.indikator_iku_id && ikuMapData.has(prog.indikator_iku_id)) {
-          matchedIku = ikuMapData.get(prog.indikator_ikuid);
-        } else if (prog.indikator_id && ikuMapData.has(prog.indikator_id)) {
-          matchedIku = ikuMapData.get(prog.indikator_id);
-        } else if (prog.indikator_iku && typeof prog.indikator_iku === 'object') {
-          matchedIku = prog.indikator_iku;
-        } else {
-          // Fallback cerdas berdasarkan nama program atau urutan agar langsung tampil sesuai ekspektasi
-          if (prog.nama_program?.toLowerCase().includes('kbm') || counter === 1) {
-            matchedIku = {
-              kode_iku: 'IKU-KUR-01',
-              judul_iku: 'Kelas bersih rapi dan kondusif selama KBM aktif',
-              target_deskripsi: '100%'
-            };
-          } else if (prog.nama_program?.toLowerCase().includes('komunitas') || counter === 2) {
-            matchedIku = {
-              kode_iku: 'IKU-KUR-02',
-              judul_iku: 'Penerapan Pembelajaran Interaktif/HOTS',
-              target_deskripsi: '4 Kali/Bulan'
-            };
-          } else {
-            matchedIku = {
-              kode_iku: `IKU-KUR-0${counter}`,
-              judul_iku: prog.nama_program,
-              target_deskripsi: '80% Tuntas'
-            };
-          }
-        }
-
+        const iku = prog.indikator_iku;
         const pLogs = allLogs.filter((l: any) => l.program_id === prog.id);
         const filteredLogs = pLogs.filter((l: any) => {
           if (!selectedMonth) return true;
@@ -108,11 +81,12 @@ export default function LaporanIkuUnitView({}: any) {
         const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
         const avgSkor = filteredLogs.length > 0 ? (totalSkor / filteredLogs.length).toFixed(1) : '0.0';
 
+        // Mengambil data murni dari relasi database indikator_iku
         flatRows.push({
           no: counter++,
-          kode_iku: matchedIku?.kode_iku || 'IKU-UNIT',
-          judul_iku: matchedIku?.judul_iku || prog.nama_program,
-          target: prog.target_pencapaian || matchedIku?.target_deskripsi || '100%',
+          kode_iku: iku?.kode_iku || `IKU-KUR-0${counter}`,
+          judul_iku: iku?.judul_iku || prog.nama_program,
+          target: prog.target_pencapaian || iku?.target_deskripsi || '100%',
           realisasi: `${avgSkor}%`,
           yayasan: '', // Dikosongkan sesuai permintaan
           kegiatan: prog.nama_program,
