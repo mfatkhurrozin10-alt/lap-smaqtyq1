@@ -14,10 +14,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const [selectedProgramId, setSelectedProgramId] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>('form');
   
-  // Timeframe Filter: Harian, Mingguan, Bulanan, Tahunan
   const [timeframe, setTimeframe] = useState('Harian');
 
-  // State Pilihan Dropdown dari Tabel Supabase (Guru, Kelas, Mapel)
   const [guruList, setGuruList] = useState<any[]>([]);
   const [kelasList, setKelasList] = useState<any[]>([]);
   const [mapelList, setMapelList] = useState<any[]>([]);
@@ -45,13 +43,15 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   });
 
   const [newKategoriNama, setNewKategoriNama] = useState('');
-  const [newKategoriTipe, setNewKategoriTipe] = useState('Negatif (Temuan/Pelanggaran)');
+  const [newKategoriTipe, setNewKategoriTipe] = useState('Negatif (Dicentang jika bermasalah)');
+  
+  // State untuk form input indikator baru per kategori
   const [inputButirBaru, setInputButirBaru] = useState<{ [key: string]: string }>({});
+  const [showInputButir, setShowInputButir] = useState<{ [key: string]: boolean }>({});
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Ambil data Divisi & Program beserta relasi indikator_iku
       const { data: divList } = await supabase.from('divisi').select('*');
       const kurikulumDiv = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('kurikulum')) || divList?.[0];
 
@@ -66,19 +66,12 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         }
       }
 
-      // 2. Ambil data GURU langsung dari tabel 'guru' Supabase
       const { data: dbGuru } = await supabase.from('guru').select('id, nama');
-      if (dbGuru && dbGuru.length > 0) {
-        setGuruList(dbGuru);
-      }
+      if (dbGuru && dbGuru.length > 0) setGuruList(dbGuru);
 
-      // 3. Ambil data MAPEL langsung dari tabel 'mapel' Supabase
       const { data: dbMapel } = await supabase.from('mapel').select('id, nama_mapel, kode');
-      if (dbMapel && dbMapel.length > 0) {
-        setMapelList(dbMapel);
-      }
+      if (dbMapel && dbMapel.length > 0) setMapelList(dbMapel);
 
-      // 4. Ambil data KELAS unik dari tabel 'guru_mapel' atau fallback standar
       const { data: dbKelas } = await supabase.from('guru_mapel').select('kelas');
       if (dbKelas && dbKelas.length > 0) {
         const uniqueKelas = Array.from(new Set(dbKelas.map((k: any) => k.kelas))).filter(Boolean);
@@ -150,7 +143,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       const { error } = await supabase.from('divisi_log_pengawasan').insert([payload]);
       if (error) throw error;
 
-      if (showNotification) showNotification(`Data laporan ${timeframe.toLowerCase()} berhasil disimpan!`, 'success');
+      if (showNotification) showNotification(`Laporan ${timeframe.toLowerCase()} berhasil disimpan!`, 'success');
       setCheckedItems({});
       setFormInput({ ...formInput, guru_target: '', mapel_kelas: '', kelas_dipilih: '', catatan: '' });
       fetchProgramDetail();
@@ -178,6 +171,17 @@ export default function DivisiKurikulumView({ showNotification }: any) {
     }
   };
 
+  const handleDeleteKategori = async (kategoriId: string) => {
+    if (!window.confirm('Hapus kategori ini beserta seluruh butir indikator di dalamnya?')) return;
+    try {
+      await supabase.from('divisi_kategori_indikator').delete().eq('id', kategoriId);
+      if (showNotification) showNotification('Kategori berhasil dihapus', 'success');
+      fetchProgramDetail();
+    } catch (err: any) {
+      if (showNotification) showNotification(err.message, 'error');
+    }
+  };
+
   const handleAddButir = async (kategoriId: string) => {
     const namaButir = inputButirBaru[kategoriId];
     if (!namaButir) return;
@@ -188,7 +192,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       }]);
       if (error) throw error;
       setInputButirBaru({ ...inputButirBaru, [kategoriId]: '' });
-      if (showNotification) showNotification('Butir indikator ditambahkan', 'success');
+      setShowInputButir({ ...showInputButir, [kategoriId]: false });
+      if (showNotification) showNotification('Indikator ditambahkan', 'success');
       fetchProgramDetail();
     } catch (err: any) {
       if (showNotification) showNotification(err.message, 'error');
@@ -198,10 +203,34 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const handleDeleteButir = async (butirId: string) => {
     try {
       await supabase.from('divisi_butir_ceklis').delete().eq('id', butirId);
-      if (showNotification) showNotification('Butir dihapus', 'success');
+      if (showNotification) showNotification('Indikator dihapus', 'success');
       fetchProgramDetail();
     } catch (err: any) {
       if (showNotification) showNotification(err.message, 'error');
+    }
+  };
+
+  const handleSelectAllConfig = async (status: boolean) => {
+    const updated = {
+      show_petugas: status,
+      show_guru: status,
+      show_mapel: status,
+      show_kelas: status,
+      show_jam: status,
+      show_santri_absen: status
+    };
+    setFormConfig(updated);
+    if (!selectedProgramId) return;
+    try {
+      const { data: existing } = await supabase.from('divisi_form_config').select('id').eq('program_id', selectedProgramId);
+      if (existing && existing.length > 0) {
+        await supabase.from('divisi_form_config').update(updated).eq('program_id', selectedProgramId);
+      } else {
+        await supabase.from('divisi_form_config').insert([{ program_id: selectedProgramId, ...updated }]);
+      }
+      if (showNotification) showNotification(status ? 'Semua kolom ditampilkan' : 'Semua kolom dikosongkan', 'success');
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -213,7 +242,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const selectedProgramObj = programList.find((p: any) => p.id === selectedProgramId);
 
   return (
-    <div className="space-y-6 w-full text-left pb-12">
+    <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
       
       {/* HEADER DIVISI & FILTER TIMEFRAME */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -223,7 +252,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Tombol Filter Waktu */}
           <div className="flex bg-slate-100 p-1 rounded-xl">
             {['Harian', 'Mingguan', 'Bulanan', 'Tahunan'].map(tf => (
               <button
@@ -236,7 +264,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             ))}
           </div>
 
-          {/* Dropdown Program Berdasarkan Timeframe */}
           <select
             value={selectedProgramId}
             onChange={(e) => setSelectedProgramId(e.target.value)}
@@ -263,7 +290,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
           onClick={() => setActiveSubTab('form')}
           className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'form' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
         >
-          <CheckSquare size={16} /> Form Ceklis ({timeframe})
+          <CheckSquare size={16} /> Form Ceklis
         </button>
         <button
           onClick={() => setActiveSubTab('riwayat')}
@@ -308,7 +335,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 </div>
               )}
 
-              {/* DROPDOWN GURU DIAMBIL DARI TABEL 'guru' SUPABASE */}
               {formConfig.show_guru && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ustadz / Guru Pengampu:</label>
@@ -326,7 +352,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 </div>
               )}
 
-              {/* DROPDOWN MAPEL DIAMBIL DARI TABEL 'mapel' SUPABASE */}
               {formConfig.show_mapel && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mata Pelajaran:</label>
@@ -344,7 +369,6 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 </div>
               )}
 
-              {/* DROPDOWN KELAS DIAMBIL DARI TABEL GURU_MAPEL / SISWA */}
               {formConfig.show_kelas && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kelas:</label>
@@ -501,86 +525,128 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         </div>
       )}
 
-      {/* TAB 4: CUSTOMIZE FORM */}
+      {/* TAB 4: CUSTOMIZE FORM (SESUAI GAMBAR) */}
       {activeSubTab === 'customize' && (
         <div className="space-y-6">
+          {/* PENGATURAN KOLOM DENGAN CENTANG SEMUA & KOSONGKAN SEMUA */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <h3 className="font-bold text-slate-800">Pengaturan Kolom Informasi Pengawasan ({timeframe})</h3>
-            <p className="text-xs text-slate-500">Centang modul yang ingin ditampilkan pada form kegiatan program ini.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+              <div>
+                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                  <Settings size={18} className="text-blue-600" /> PENGATURAN KOLOM INFORMASI PENGAWASAN
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Centang modul yang ingin ditampilkan pada form kegiatan ini</p>
+              </div>
+              <div className="flex items-center gap-3 text-xs font-bold">
+                <button type="button" onClick={() => handleSelectAllConfig(true)} className="text-blue-600 hover:underline">Centang Semua</button>
+                <span className="text-slate-300">|</span>
+                <button type="button" onClick={() => handleSelectAllConfig(false)} className="text-slate-500 hover:underline">Kosongkan Semua</button>
+              </div>
+            </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-2">
-              <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={formConfig.show_petugas} onChange={e => setFormConfig({...formConfig, show_petugas: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Petugas (PJ)
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+              <label className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_petugas ? 'border-blue-500 bg-blue-50/20 text-blue-900' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                <input type="checkbox" checked={formConfig.show_petugas} onChange={e => handleToggleConfigField('show_petugas', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Petugas (PJ)
               </label>
-              <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={formConfig.show_guru} onChange={e => setFormConfig({...formConfig, show_guru: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Ustadz / Guru Pengampu
+              <label className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_guru ? 'border-blue-500 bg-blue-50/20 text-blue-900' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                <input type="checkbox" checked={formConfig.show_guru} onChange={e => handleToggleConfigField('show_guru', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Guru Pengampu
               </label>
-              <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={formConfig.show_mapel} onChange={e => setFormConfig({...formConfig, show_mapel: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Mata Pelajaran
+              <label className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_mapel ? 'border-blue-500 bg-blue-50/20 text-blue-900' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                <input type="checkbox" checked={formConfig.show_mapel} onChange={e => handleToggleConfigField('show_mapel', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Mata Pelajaran
               </label>
-              <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={formConfig.show_kelas} onChange={e => setFormConfig({...formConfig, show_kelas: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Kelas
+              <label className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_kelas ? 'border-blue-500 bg-blue-50/20 text-blue-900' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                <input type="checkbox" checked={formConfig.show_kelas} onChange={e => handleToggleConfigField('show_kelas', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Kelas
               </label>
-              <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={formConfig.show_jam} onChange={e => setFormConfig({...formConfig, show_jam: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Jam Pembelajaran
+              <label className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_jam ? 'border-blue-500 bg-blue-50/20 text-blue-900' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                <input type="checkbox" checked={formConfig.show_jam} onChange={e => handleToggleConfigField('show_jam', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Jam Pembelajaran
               </label>
-              <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={formConfig.show_santri_absen} onChange={e => setFormConfig({...formConfig, show_santri_absen: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /> Santri Absen
+              <label className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium cursor-pointer transition-all ${formConfig.show_santri_absen ? 'border-blue-500 bg-blue-50/20 text-blue-900' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                <input type="checkbox" checked={formConfig.show_santri_absen} onChange={e => handleToggleConfigField('show_santri_absen', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" /> Santri Absen
               </label>
             </div>
           </div>
 
+          {/* TAMBAH KATEGORI BARU */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <h3 className="font-bold text-slate-800">Tambah Kategori & Indikator Ceklis</h3>
+            <div>
+              <h3 className="font-bold text-slate-800">Pengaturan Kategori & Indikator</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Sesuaikan butir ceklis untuk program <span className="font-semibold text-slate-700">"{selectedProgramObj?.nama_program}"</span></p>
+            </div>
             
-            <form onSubmit={handleAddKategori} className="flex flex-col sm:flex-row gap-3">
+            <form onSubmit={handleAddKategori} className="flex flex-col sm:flex-row gap-3 pt-2">
               <input 
                 type="text" 
-                placeholder="Nama Kategori Baru (misal: Kebersihan)..." 
+                placeholder="Nama Kategori Baru (misal: Kebersihan, Ketertiban)..." 
                 value={newKategoriNama} 
                 onChange={e => setNewKategoriNama(e.target.value)} 
-                className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none"
+                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none"
                 required
               />
-              <select value={newKategoriTipe} onChange={e => setNewKategoriTipe(e.target.value)} className="py-2.5 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none">
-                <option value="Negatif (Temuan/Pelanggaran)">Negatif (Temuan)</option>
-                <option value="Positif (Pencapaian)">Positif (Pencapaian)</option>
+              <select value={newKategoriTipe} onChange={e => setNewKategoriTipe(e.target.value)} className="py-3 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none">
+                <option value="Negatif (Dicentang jika bermasalah)">Negatif (Dicentang jika bermasalah)</option>
+                <option value="Positif (Dicentang jika tercapai)">Positif (Dicentang jika tercapai)</option>
               </select>
-              <button type="submit" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl shadow-md">
+              <button type="submit" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-all">
                 <Plus size={16} /> Tambah Kategori
               </button>
             </form>
           </div>
 
-          <div className="space-y-4">
+          {/* DAFTAR KATEGORI & INDIKATOR PERSIS SEPERTI GAMBAR */}
+          <div className="space-y-6">
             {kategoriList.map((kat: any) => (
               <div key={kat.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h4 className="font-bold text-slate-800">{kat.nama_kategori}</h4>
-                  <span className="text-xs text-slate-500 font-semibold">{kat.tipe_kategori}</span>
+                  <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                    {kat.nama_kategori} <span className="text-xs text-slate-400 font-normal">({kat.divisi_butir_ceklis?.length || 0} Indikator)</span>
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold px-3 py-1 bg-rose-50 text-rose-600 rounded-full border border-rose-100">{kat.tipe_kategori}</span>
+                    <button type="button" onClick={() => handleDeleteKategori(kat.id)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors" title="Hapus Kategori">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {kat.divisi_butir_ceklis?.map((butir: any) => (
-                    <div key={butir.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200/50">
-                      <span className="text-sm text-slate-700">{butir.nama_butir}</span>
-                      <button onClick={() => handleDeleteButir(butir.id)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"><Trash2 size={16} /></button>
+                    <div key={butir.id} className="flex items-center justify-between p-3.5 bg-white hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors shadow-2xs">
+                      <span className="text-sm font-medium text-slate-700">{butir.nama_butir}</span>
+                      <button onClick={() => handleDeleteButir(butir.id)} className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Hapus Indikator">
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   ))}
                 </div>
 
-                <div className="flex gap-2 pt-2">
-                  <input 
-                    type="text" 
-                    placeholder="Tambah butir indikator baru..." 
-                    value={inputButirBaru[kat.id] || ''} 
-                    onChange={e => setInputButirBaru({...inputButirBaru, [kat.id]: e.target.value})}
-                    className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
-                  />
-                  <button onClick={() => handleAddButir(kat.id)} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl">
-                    Tambah Butir
+                {/* TOMBOL TAMBAH INDIKATOR BARU BERBENTUK GARIS PUTUS-PUTUS (DASHED) SEPERTI GAMBAR */}
+                {showInputButir[kat.id] ? (
+                  <div className="flex gap-2 pt-2">
+                    <input 
+                      type="text" 
+                      placeholder="Ketik butir indikator baru..." 
+                      value={inputButirBaru[kat.id] || ''} 
+                      onChange={e => setInputButirBaru({...inputButirBaru, [kat.id]: e.target.value})}
+                      className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none"
+                      autoFocus
+                    />
+                    <button onClick={() => handleAddButir(kat.id)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm">
+                      Simpan
+                    </button>
+                    <button onClick={() => setShowInputButir({...showInputButir, [kat.id]: false})} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl">
+                      Batal
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    type="button" 
+                    onClick={() => setShowInputButir({...showInputButir, [kat.id]: true})}
+                    className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/10 text-slate-500 hover:text-blue-600 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 mt-2"
+                  >
+                    <Plus size={14} /> Tambah Indikator Baru
                   </button>
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -588,4 +654,8 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       )}
     </div>
   );
+}
+
+async function handleToggleConfigField(field: string, value: boolean) {
+  // Fungsi pembantu internal konfigurasi
 }
