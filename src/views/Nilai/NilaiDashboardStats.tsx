@@ -1,9 +1,9 @@
 // src/views/Nilai/NilaiDashboardStats.tsx
 import { useState, useMemo, useEffect } from 'react';
 import { Icons } from '../../Icons';
-import { supabase } from '../../services/supabase';
 
 export default function NilaiDashboardStats({
+  stats, // Ditambahkan untuk menerima data stats dari parent
   filterMapel, setFilterMapel, filteredMapelOptions,
   filterKelas, setFilterKelas, options, search, setSearch,
   fetchLoading, groupedByMapelAndKelas, setDeleteTarget,
@@ -18,30 +18,10 @@ export default function NilaiDashboardStats({
 
   const [selectedModalData, setSelectedModalData] = useState<any | null>(null);
 
-  const [groupMateriInput, setGroupMateriInput] = useState<string>('');
-  const [isUpdatingGroupMateri, setIsUpdatingGroupMateri] = useState(false);
-
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editNilai, setEditNilai] = useState<string>('');
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
-  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
-
-  const [toastMessage, setToastMessage] = useState<{ title: string; desc: string; type: 'success' | 'error' } | null>(null);
-
-  const showNotification = (title: string, desc: string, type: 'success' | 'error' = 'success') => {
-    setToastMessage({ title, desc, type });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
-  };
-
-const getSingkatanUjian = (nama_ujian: string) => {
+  const getSingkatanUjian = (nama_ujian: string) => {
     if (!nama_ujian) return '-';
     let formatted = nama_ujian.toLowerCase();
     
-    // Mengubah nama ujian panjang menjadi singkatan bersih secara utuh
     if (formatted.includes('ulangan harian') || formatted.includes('uh')) return 'UH';
     if (formatted.includes('tengah semester gasal') || formatted.includes('asts gasal')) return 'ASTS Gasal';
     if (formatted.includes('tengah semester genap') || formatted.includes('asts genap')) return 'ASTS Genap';
@@ -54,7 +34,6 @@ const getSingkatanUjian = (nama_ujian: string) => {
     return nama_ujian; 
   };
 
-  // GROUPING DIPERLUAS DENGAN UJIAN DAN JUDUL MATERI AGAR TIAP ASESMEN TERPISAH
   const tableRows = useMemo(() => {
     const result: Record<string, any[]> = {};
     const allItems: any[] = [];
@@ -80,7 +59,6 @@ const getSingkatanUjian = (nama_ujian: string) => {
         const ujianId = item.ujian_id || 'umum';
         const judulMateriKey = (item.judul_materi || '-').trim().toLowerCase();
         
-        // Kunci unik agar UH 1, UH 2, dan ASTS tampil terpisah
         const newKey = `${namaGuru}|#|${namaMapel}|#|${kelas}|#|${ujianId}|#|${judulMateriKey}`;
         
         if (!result[newKey]) result[newKey] = [];
@@ -131,14 +109,12 @@ const getSingkatanUjian = (nama_ujian: string) => {
   const totalPages = Math.ceil(tableRows.length / itemsPerPage);
   const paginatedRows = tableRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-// MEMPERBAIKI FILTER UJIAN AGAR TIDAK HANYA MEMUNCULKAN SATU DATA TERAKHIR
   const availableUjianOptions = useMemo(() => {
     const list: any[] = [];
     Object.values(groupedByMapelAndKelas || {}).forEach((arr: any) => {
       arr.forEach((item: any) => {
         if (item.ujian) {
           const singkatan = getSingkatanUjian(item.ujian.nama_ujian);
-          // Menggunakan id ujian asli agar semua jenis ujian muncul lengkap di dropdown
           if (!list.some(u => u.id === item.ujian.id)) {
             list.push({ id: item.ujian.id, nama: singkatan, originalName: item.ujian.nama_ujian });
           }
@@ -148,95 +124,19 @@ const getSingkatanUjian = (nama_ujian: string) => {
     return list;
   }, [groupedByMapelAndKelas]);
 
-  const handleSaveGroupMateri = async () => {
-    if (!selectedModalData) return;
-    setIsUpdatingGroupMateri(true);
-    try {
-      const materiBaru = groupMateriInput.trim() || '-';
-      
-      const updatePromises = selectedModalData.items.map((item: any) => 
-        supabase.from('nilai').update({ judul_materi: materiBaru }).eq('id', item.id)
-      );
-
-      const results = await Promise.all(updatePromises);
-      const failed = results.find(r => r.error);
-      if (failed && failed.error) throw failed.error;
-
-      selectedModalData.items.forEach((item: any) => {
-        item.judul_materi = materiBaru;
-      });
-      selectedModalData.defaultMateri = materiBaru;
-
-      showNotification('Berhasil!', 'Judul materi kelas berhasil diperbarui secara massal.');
-    } catch (err: any) {
-      showNotification('Gagal!', err.message || 'Gagal memperbarui judul materi', 'error');
-    } finally {
-      setIsUpdatingGroupMateri(false);
-    }
-  };
-
-  const handleConfirmDeleteGroup = async () => {
-    if (!selectedModalData) return;
-    setIsDeletingGroup(true);
-    try {
-      const idsToDelete = selectedModalData.items.map((i: any) => i.id);
-
-      const deletePromises = idsToDelete.map((id: string) => 
-        supabase.from('nilai').delete().eq('id', id)
-      );
-
-      const results = await Promise.all(deletePromises);
-      const failed = results.find(r => r.error);
-      if (failed && failed.error) throw failed.error;
-
-      setShowDeleteGroupModal(false);
-      setSelectedModalData(null);
-      showNotification('Terhapus', 'Seluruh data penilaian kelas ini berhasil dihapus.');
-      window.location.reload();
-    } catch (err: any) {
-      showNotification('Gagal', err.message || 'Gagal menghapus data kelas', 'error');
-    } finally {
-      setIsDeletingGroup(false);
-    }
-  };
-
-  const handleSaveEditNilai = async (item: any) => {
-    const numVal = parseFloat(editNilai);
-    if (isNaN(numVal) || numVal < 0 || numVal > 100) {
-      showNotification('Peringatan', 'Nilai harus berupa angka antara 0 hingga 100', 'error');
-      return;
-    }
-    setIsUpdating(true);
-    try {
-      const { error } = await supabase.from('nilai').update({ nilai: numVal }).eq('id', item.id);
-      if (error) throw error;
-      
-      item.nilai = numVal;
-      setEditingId(null);
-      showNotification('Tersimpan', 'Nilai siswa berhasil diperbarui.');
-    } catch (err: any) {
-      showNotification('Gagal', err.message || 'Gagal memperbarui nilai siswa', 'error');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
   return (
     <div className="space-y-6 w-full relative">
       
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-[150] animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className={`flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl border text-xs font-bold ${toastMessage.type === 'success' ? 'bg-emerald-900 text-white border-emerald-700' : 'bg-rose-900 text-white border-rose-700'}`}>
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${toastMessage.type === 'success' ? 'bg-emerald-800 text-emerald-300' : 'bg-rose-800 text-rose-300'}`}>
-              {toastMessage.type === 'success' ? '✓' : '✕'}
-            </div>
-            <div>
-              <p className="text-sm font-black">{toastMessage.title}</p>
-              <p className="text-[11px] font-medium opacity-90 mt-0.5">{toastMessage.desc}</p>
-            </div>
-          </div>
+      {/* CARD RATA-RATA NILAI TERFILTER */}
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Rata-rata Nilai (Terfilter)</h3>
+          <p className="text-xs text-slate-400">Kalkulasi berdasarkan kombinasi filter bulan, kelas, guru, dan mapel yang aktif.</p>
         </div>
-      )}
+        <div className="px-6 py-3 bg-indigo-50 border border-indigo-100 rounded-xl text-center">
+          <span className="block text-3xl font-extrabold text-indigo-700">{stats?.avgScore || '0'}</span>
+        </div>
+      </div>
 
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm w-full">
         <div className="shrink-0">
@@ -342,16 +242,12 @@ const getSingkatanUjian = (nama_ujian: string) => {
                 paginatedRows.map((row, index) => (
                   <tr 
                     key={index} 
-                    onClick={() => {
-                      setSelectedModalData(row);
-                      setGroupMateriInput(row.defaultMateri);
-                    }}
+                    onClick={() => setSelectedModalData(row)}
                     className={`cursor-pointer transition-all hover:bg-indigo-50/40 ${!row.isTuntasBaik ? 'bg-rose-50/30' : ''}`}
                   >
                     <td className="px-5 py-4 text-center text-slate-400 font-semibold">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-5 py-4 font-bold text-slate-800">{row.namaGuru}</td>
                     
-                    {/* KOLOM MATA PELAJARAN DENGAN KETERANGAN JENIS UJIAN & JUDUL MATERI DI BAWAHNYA */}
                     <td className="px-5 py-4">
                       <div className="font-extrabold text-indigo-600">{row.namaMapel}</div>
                       <div className="flex items-center gap-1.5 mt-1">
@@ -446,40 +342,11 @@ const getSingkatanUjian = (nama_ujian: string) => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowDeleteGroupModal(true)}
-                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                  title="Hapus Seluruh Penilaian Kelas Ini"
-                >
-                  <Icons.Trash /> Hapus Kelas Ini
-                </button>
                 <button 
-                  onClick={() => { setSelectedModalData(null); setEditingId(null); }}
+                  onClick={() => setSelectedModalData(null)}
                   className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors shrink-0 cursor-pointer"
                 >
                   <Icons.X />
-                </button>
-              </div>
-            </div>
-
-            <div className="px-5 py-3.5 bg-indigo-50/60 border-b border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-              <div className="w-full sm:w-auto flex-1">
-                <label className="block text-[10px] font-bold text-indigo-900 uppercase tracking-wider mb-1">Judul Materi / Tugas Bersama ({selectedModalData.namaUjianLabel})</label>
-                <input 
-                  type="text"
-                  value={groupMateriInput}
-                  onChange={(e) => setGroupMateriInput(e.target.value)}
-                  placeholder="Contoh: Bab 1 / Ulangan Harian 1"
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-lg outline-none font-semibold text-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="w-full sm:w-auto flex justify-end shrink-0 sm:pt-5">
-                <button
-                  onClick={handleSaveGroupMateri}
-                  disabled={isUpdatingGroupMateri}
-                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer w-full sm:w-auto"
-                >
-                  {isUpdatingGroupMateri ? 'Menyimpan...' : 'Simpan Judul Materi'}
                 </button>
               </div>
             </div>
@@ -494,37 +361,23 @@ const getSingkatanUjian = (nama_ujian: string) => {
                     <th className="px-5 py-3">JUDUL MATERI</th>
                     <th className="px-5 py-3 text-center">NILAI</th>
                     <th className="px-5 py-3 text-center">STATUS</th>
-                    <th className="px-5 py-3 text-right">AKSI</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {selectedModalData.items.map((item: any, idx: number) => {
                     const isPass = item.nilai >= selectedModalData.kkm;
-                    const isEditingThis = editingId === item.id;
 
                     return (
-                      <tr key={item.id || idx} className={`transition-colors ${isEditingThis ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}>
+                      <tr key={item.id || idx} className="transition-colors hover:bg-slate-50">
                         <td className="px-5 py-3 text-center text-slate-400 font-medium">{idx + 1}</td>
                         <td className="px-5 py-3 text-slate-500 font-mono text-[11px]">{item.siswa?.nis || '-'}</td>
                         <td className="px-5 py-3 font-bold text-slate-800 text-xs">{item.siswa?.nama || 'Siswa'}</td>
                         <td className="px-5 py-3 text-xs text-slate-600 font-medium">
                           {item.judul_materi || '-'}
                         </td>
-                        
                         <td className="px-5 py-3 text-center">
-                          {isEditingThis ? (
-                            <input 
-                              type="number" 
-                              value={editNilai}
-                              onChange={(e) => setEditNilai(e.target.value)}
-                              disabled={isUpdating}
-                              className="w-16 px-2 py-1 text-center font-bold text-indigo-700 bg-white border border-indigo-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
-                            />
-                          ) : (
-                            <span className={`text-sm font-black ${isPass ? 'text-emerald-600' : 'text-rose-600'}`}>{item.nilai}</span>
-                          )}
+                          <span className={`text-sm font-black ${isPass ? 'text-emerald-600' : 'text-rose-600'}`}>{item.nilai}</span>
                         </td>
-
                         <td className="px-5 py-3 text-center">
                           {isPass ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
@@ -534,50 +387,6 @@ const getSingkatanUjian = (nama_ujian: string) => {
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200">
                               Remedial
                             </span>
-                          )}
-                        </td>
-
-                        <td className="px-5 py-3 text-right">
-                          {isEditingThis ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <button 
-                                onClick={() => handleSaveEditNilai(item)} 
-                                disabled={isUpdating}
-                                className="p-1.5 text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors cursor-pointer"
-                                title="Simpan"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                              </button>
-                              <button 
-                                onClick={() => setEditingId(null)} 
-                                disabled={isUpdating}
-                                className="p-1.5 text-slate-500 bg-slate-200 hover:bg-slate-300 rounded-lg transition-colors cursor-pointer"
-                                title="Batal"
-                              >
-                                <Icons.X />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-end gap-1">
-                              <button 
-                                onClick={() => { setEditingId(item.id); setEditNilai(String(item.nilai)); }} 
-                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                                title="Edit Nilai"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                              </button>
-                              
-                              <button 
-                                onClick={() => {
-                                  setDeleteTarget(item);
-                                  setSelectedModalData(null); 
-                                }} 
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Hapus Nilai"
-                              >
-                                <Icons.Trash />
-                              </button>
-                            </div>
                           )}
                         </td>
                       </tr>
@@ -597,40 +406,6 @@ const getSingkatanUjian = (nama_ujian: string) => {
               </button>
             </div>
 
-          </div>
-        </div>
-      )}
-
-      {showDeleteGroupModal && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 text-center space-y-4 animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-              <Icons.Trash />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900">Hapus Seluruh Penilaian Kelas Ini?</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Tindakan ini akan menghapus <strong className="text-rose-600">{selectedModalData?.items.length} rekor nilai siswa</strong> untuk mata pelajaran <strong>{selectedModalData?.namaMapel}</strong> kelas <strong>{selectedModalData?.kelas}</strong>. Data yang dihapus tidak dapat dikembalikan.
-              </p>
-            </div>
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <button 
-                type="button" 
-                onClick={() => setShowDeleteGroupModal(false)}
-                disabled={isDeletingGroup}
-                className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
-              >
-                Batal
-              </button>
-              <button 
-                type="button" 
-                onClick={handleConfirmDeleteGroup}
-                disabled={isDeletingGroup}
-                className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
-              >
-                {isDeletingGroup ? 'Menghapus...' : 'Ya, Hapus Semua'}
-              </button>
-            </div>
           </div>
         </div>
       )}

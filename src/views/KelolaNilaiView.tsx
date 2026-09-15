@@ -1,5 +1,5 @@
 // src/views/KelolaNilaiView.tsx
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react'; // Menghapus React untuk menghindari error Vercel
 import { supabase, getCurrentMonthName } from '../services/supabase';
 import { Icons } from '../Icons';
 import { ConfirmModal } from '../components/UIComponents';
@@ -20,7 +20,6 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
   const [filterMapel, setFilterMapel] = useState('ALL');
   const [filterKelas, setFilterKelas] = useState('ALL');
   const [filterGuru, setFilterGuru] = useState('ALL');
-  // 1. Tambahkan state filter bulan, otomatis terisi bulan saat ini
   const [filterBulan, setFilterBulan] = useState(getCurrentMonthName()); 
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
@@ -93,22 +92,6 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
     return baseMapel;
   }, [options.mapel, options.guruMapel, isTeacherRole, user]);
 
-  const stats = useMemo(() => {
-    if (data.length === 0) return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0 };
-    const totalScore = data.reduce((acc, curr) => acc + (curr.nilai || 0), 0);
-    const avgScore = (totalScore / data.length).toFixed(1);
-    
-    let tuntas = 0;
-    let remedial = 0;
-    data.forEach(n => {
-      const kkm = n.mapel?.kkm || 75;
-      if ((n.nilai || 0) >= kkm) tuntas++;
-      else remedial++;
-    });
-
-    return { totalRecords: data.length, avgScore, tuntasCount: tuntas, remedialCount: remedial };
-  }, [data]);
-
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {
@@ -122,18 +105,35 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
     }
   };
 
+  // 1. filteredData dideklarasikan lebih dulu agar bisa digunakan oleh stats
   const filteredData = useMemo(() => {
     return data.filter((item: any) => {
       const nameMatch = (item.siswa?.nama || '').toLowerCase().includes(search.toLowerCase()) || (item.siswa?.nis || '').toLowerCase().includes(search.toLowerCase());
       const mapelMatch = filterMapel === 'ALL' || item.mapel_id === filterMapel;
       const kelasMatch = filterKelas === 'ALL' || (item.kelas || '').trim() === filterKelas.trim();
       const guruMatch = filterGuru === 'ALL' || item.guru_id === filterGuru;
-      // 2. Terapkan filter bulan ke data yang sedang dirender
       const bulanMatch = filterBulan === 'ALL' || (item.bulan || '') === filterBulan;
       
       return nameMatch && mapelMatch && kelasMatch && guruMatch && bulanMatch;
     });
   }, [data, search, filterMapel, filterKelas, filterGuru, filterBulan]);
+
+  // 2. stats menggunakan sumber dari filteredData
+  const stats = useMemo(() => {
+    if (filteredData.length === 0) return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0 };
+    const totalScore = filteredData.reduce((acc, curr) => acc + (curr.nilai || 0), 0);
+    const avgScore = (totalScore / filteredData.length).toFixed(1);
+    
+    let tuntas = 0;
+    let remedial = 0;
+    filteredData.forEach(n => {
+      const kkm = n.mapel?.kkm || 75;
+      if ((n.nilai || 0) >= kkm) tuntas++;
+      else remedial++;
+    });
+
+    return { totalRecords: filteredData.length, avgScore, tuntasCount: tuntas, remedialCount: remedial };
+  }, [filteredData]);
 
   const groupedByMapelAndKelas = useMemo(() => {
     const groups: { [key: string]: any[] } = {};
@@ -159,7 +159,6 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           
-          {/* 3. Menambahkan Dropdown Filter Bulan di Header */}
           <select 
             value={filterBulan}
             onChange={(e) => setFilterBulan(e.target.value)}
