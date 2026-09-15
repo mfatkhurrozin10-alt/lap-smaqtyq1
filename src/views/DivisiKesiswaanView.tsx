@@ -16,10 +16,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
   
   const [timeframe, setTimeframe] = useState('Harian');
 
-  const [guruList, setGuruList] = useState<any[]>([]);
-  const [kelasList, setKelasList] = useState<any[]>([]);
-  const [mapelList, setMapelList] = useState<any[]>([]);
-
   const [formInput, setFormInput] = useState({
     petugas_pj: '',
     guru_target: '',
@@ -55,24 +51,24 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     label_kelas: 'Kelas',
     label_jam: 'Waktu / Sesi',
     label_santri_absen: 'Santri Absen / Kendala',
-    // Tipe input: 'input' (teks singkat) atau 'dropdown' (pilihan)
     type_petugas: 'input',
-    type_guru: 'dropdown',
-    type_mapel: 'dropdown',
-    type_kelas: 'dropdown',
+    type_guru: 'input',
+    type_mapel: 'input',
+    type_kelas: 'input',
     type_jam: 'input',
     type_santri_absen: 'input',
-    // Opsi kustom untuk yang bertipe dropdown (disimpan dalam bentuk string array atau comma-separated)
+    options_petugas: [],
     options_guru: [],
     options_mapel: [],
-    options_kelas: []
+    options_kelas: [],
+    options_jam: [],
+    options_santri_absen: []
   });
 
-  // State untuk Modal Edit Konfigurasi Kolom (Label, Tipe, & Opsi)
   const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
   const [tempLabel, setTempLabel] = useState('');
-  const [tempType, setTempType] = useState('dropdown');
-  const [tempOptionsText, setTempOptionsText] = useState(''); // dipisah koma untuk opsi dropdown
+  const [tempType, setTempType] = useState('input');
+  const [tempOptionsText, setTempOptionsText] = useState('');
 
   const [newKategoriNama, setNewKategoriNama] = useState('');
   const [newKategoriTipe, setNewKategoriTipe] = useState('Negatif (Dicentang jika bermasalah)');
@@ -107,20 +103,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
           const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
           setSelectedProgramId(targetProg.id);
         }
-      }
-
-      const { data: dbGuru } = await supabase.from('guru').select('id, nama');
-      if (dbGuru && dbGuru.length > 0) setGuruList(dbGuru);
-
-      const { data: dbMapel } = await supabase.from('mapel').select('id, nama_mapel, kode');
-      if (dbMapel && dbMapel.length > 0) setMapelList(dbMapel);
-
-      const { data: dbKelas } = await supabase.from('guru_mapel').select('kelas');
-      if (dbKelas && dbKelas.length > 0) {
-        const uniqueKelas = Array.from(new Set(dbKelas.map((k: any) => k.kelas))).filter(Boolean);
-        setKelasList(uniqueKelas);
-      } else {
-        setKelasList(['Kelas 7-A', 'Kelas 7-B', 'Kelas 8-A', 'Kelas 8-B', 'Kelas 9-A', 'Kelas 9-B']);
       }
     } catch (err) {
       console.error(err);
@@ -308,7 +290,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     }
   };
 
-  // Fungsi Menyimpan Pengaturan Kolom Kustom (Label, Tipe Input, & Opsi Dropdown)
   const handleSaveColumnCustomize = async (columnKey: string) => {
     const mapConfig: any = {
       show_petugas: { label: 'label_petugas', type: 'type_petugas', opts: 'options_petugas' },
@@ -322,7 +303,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
     const targetMap = mapConfig[columnKey];
     if (!targetMap || !selectedProgramId) return;
 
-    // Ubah text opsi koma menjadi array
     const optionsArray = tempOptionsText.split(',').map(s => s.trim()).filter(Boolean);
 
     const updatedConfig = { 
@@ -400,27 +380,24 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
 
   const averageRealisasi = riwayatList.length > 0 ? (riwayatList.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen), 0) / riwayatList.length) : 0;
 
-  // Render komponen dinamis untuk input (bisa dropdown atau input teks singkat)
   const renderDynamicInput = (
     showKey: string, 
     labelKey: string, 
     typeKey: string, 
     optsKey: string, 
     valueState: string, 
-    onChangeVal: (val: string) => void,
-    defaultOpts: string[]
+    onChangeVal: (val: string) => void
   ) => {
     if (!formConfig[showKey]) return null;
 
     const label = formConfig[labelKey];
-    const inputType = formConfig[typeKey] || 'input'; // 'input' atau 'dropdown'
-    const customOpts = formConfig[optsKey];
-    const optionsList = (customOpts && customOpts.length > 0) ? customOpts : defaultOpts;
+    const inputType = formConfig[typeKey] || 'input';
+    const optionsList = formConfig[optsKey] || [];
 
     return (
       <div>
         <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}:</label>
-        {inputType === 'dropdown' ? (
+        {inputType === 'dropdown' && optionsList.length > 0 ? (
           <select 
             value={valueState} 
             onChange={e => onChangeVal(e.target.value)} 
@@ -536,12 +513,12 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {renderDynamicInput('show_petugas', 'label_petugas', 'type_petugas', 'options_petugas', formInput.petugas_pj, (val) => setFormInput({...formInput, petugas_pj: val}), [])}
-              {renderDynamicInput('show_guru', 'label_guru', 'type_guru', 'options_guru', formInput.guru_target, (val) => setFormInput({...formInput, guru_target: val}), guruList.map(g => g.nama))}
-              {renderDynamicInput('show_mapel', 'label_mapel', 'type_mapel', 'options_mapel', formInput.mapel_kelas, (val) => setFormInput({...formInput, mapel_kelas: val}), mapelList.map(m => m.nama_mapel))}
-              {renderDynamicInput('show_kelas', 'label_kelas', 'type_kelas', 'options_kelas', formInput.kelas_dipilih, (val) => setFormInput({...formInput, kelas_dipilih: val}), kelasList)}
-              {renderDynamicInput('show_jam', 'label_jam', 'type_jam', 'options_jam', formInput.jam_pembelajaran, (val) => setFormInput({...formInput, jam_pembelajaran: val}), ['1-2', '3-4', '5-6', '7-8'])}
-              {renderDynamicInput('show_santri_absen', 'label_santri_absen', 'type_santri_absen', 'options_santri_absen', formInput.santri_absen, (val) => setFormInput({...formInput, santri_absen: val}), ['Nihil', 'Izin', 'Sakit', 'Alfa'])}
+              {renderDynamicInput('show_petugas', 'label_petugas', 'type_petugas', 'options_petugas', formInput.petugas_pj, (val) => setFormInput({...formInput, petugas_pj: val}))}
+              {renderDynamicInput('show_guru', 'label_guru', 'type_guru', 'options_guru', formInput.guru_target, (val) => setFormInput({...formInput, guru_target: val}))}
+              {renderDynamicInput('show_mapel', 'label_mapel', 'type_mapel', 'options_mapel', formInput.mapel_kelas, (val) => setFormInput({...formInput, mapel_kelas: val}))}
+              {renderDynamicInput('show_kelas', 'label_kelas', 'type_kelas', 'options_kelas', formInput.kelas_dipilih, (val) => setFormInput({...formInput, kelas_dipilih: val}))}
+              {renderDynamicInput('show_jam', 'label_jam', 'type_jam', 'options_jam', formInput.jam_pembelajaran, (val) => setFormInput({...formInput, jam_pembelajaran: val}))}
+              {renderDynamicInput('show_santri_absen', 'label_santri_absen', 'type_santri_absen', 'options_santri_absen', formInput.santri_absen, (val) => setFormInput({...formInput, santri_absen: val}))}
             </div>
           </div>
 
@@ -654,10 +631,12 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
                 <tr>
                   <th className="px-6 py-4">No</th>
                   <th className="px-6 py-4">Waktu</th>
-                  <th className="px-6 py-4">{formConfig.label_petugas}</th>
-                  <th className="px-6 py-4">{formConfig.label_guru}</th>
-                  <th className="px-6 py-4">{formConfig.label_mapel} & {formConfig.label_kelas}</th>
-                  <th className="px-6 py-4">{formConfig.label_santri_absen}</th>
+                  {formConfig.show_petugas && <th className="px-6 py-4">{formConfig.label_petugas}</th>}
+                  {formConfig.show_guru && <th className="px-6 py-4">{formConfig.label_guru}</th>}
+                  {formConfig.show_mapel && <th className="px-6 py-4">{formConfig.label_mapel}</th>}
+                  {formConfig.show_kelas && <th className="px-6 py-4">{formConfig.label_kelas}</th>}
+                  {formConfig.show_jam && <th className="px-6 py-4">{formConfig.label_jam}</th>}
+                  {formConfig.show_santri_absen && <th className="px-6 py-4">{formConfig.label_santri_absen}</th>}
                   <th className="px-6 py-4">Skor</th>
                   <th className="px-6 py-4">Catatan</th>
                   <th className="px-6 py-4 text-center">Aksi</th>
@@ -666,7 +645,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
               <tbody className="divide-y divide-slate-100">
                 {currentRiwayatPageData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12 text-slate-400">Belum ada log riwayat pengawasan pada filter ini.</td>
+                    <td colSpan={12} className="text-center py-12 text-slate-400">Belum ada log riwayat pengawasan pada filter ini.</td>
                   </tr>
                 ) : (
                   currentRiwayatPageData.map((item: any, idx: number) => {
@@ -677,10 +656,12 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 font-mono text-slate-400">{absoluteIndex}</td>
                         <td className="px-6 py-4 text-slate-600 text-xs">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj}</td>
-                        <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.mapel_kelas}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>
+                        {formConfig.show_petugas && <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj || '-'}</td>}
+                        {formConfig.show_guru && <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target || '-'}</td>}
+                        {formConfig.show_mapel && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '-'}</td>}
+                        {formConfig.show_kelas && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '-'}</td>}
+                        {formConfig.show_jam && <td className="px-6 py-4 text-slate-600">{item.jam_pembelajaran || '-'}</td>}
+                        {formConfig.show_santri_absen && <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>}
                         <td className={`px-6 py-4 font-black ${getScoreTextColor(skorVal)}`}>
                           {skorVal}%
                         </td>
@@ -773,22 +754,29 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
                 </h4>
                 <p className="text-[11px] text-slate-500">Skala: {(selectedDetailLog.skor_persen / 33.3).toFixed(2)} / 3.0</p>
               </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ATRIBUT UTAMA</p>
-                <h4 className="text-xs font-bold text-slate-800 break-words">{selectedDetailLog.mapel_kelas}</h4>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TARGET / GURU</p>
-                <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.guru_target}</h4>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">KETERANGAN</p>
-                <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.santri_absen || 'Nihil'}</h4>
-              </div>
+              {formConfig.show_mapel && (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{formConfig.label_mapel.toUpperCase()}</p>
+                  <h4 className="text-xs font-bold text-slate-800 break-words">{selectedDetailLog.mapel_kelas ? selectedDetailLog.mapel_kelas.split(' (')[0] : '-'}</h4>
+                </div>
+              )}
+              {formConfig.show_kelas && (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{formConfig.label_kelas.toUpperCase()}</p>
+                  <h4 className="text-xs font-bold text-slate-800 break-words">{selectedDetailLog.mapel_kelas && selectedDetailLog.mapel_kelas.includes('(') ? selectedDetailLog.mapel_kelas.split('(')[1].replace(')', '') : '-'}</h4>
+                </div>
+              )}
+              {formConfig.show_guru && (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{formConfig.label_guru.toUpperCase()}</p>
+                  <h4 className="text-xs font-bold text-slate-800 leading-snug break-words">{selectedDetailLog.guru_target || '-'}</h4>
+                </div>
+              )}
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-500 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
-              <p>{formConfig.label_petugas}: <span className="font-semibold text-slate-700">{selectedDetailLog.petugas_pj}</span></p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-500 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100 gap-2">
+              {formConfig.show_petugas && <p>{formConfig.label_petugas}: <span className="font-semibold text-slate-700">{selectedDetailLog.petugas_pj}</span></p>}
+              {formConfig.show_jam && <p>{formConfig.label_jam}: <span className="font-semibold text-slate-700">{selectedDetailLog.jam_pembelajaran}</span></p>}
               <p>Waktu Input: <span className="font-semibold text-slate-700">{new Date(selectedDetailLog.waktu_input).toLocaleString('id-ID')}</span></p>
             </div>
 
@@ -874,7 +862,7 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                   <Settings size={18} className="text-blue-600" /> PENGATURAN KOLOM, LABEL, & TIPE INPUTAN
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Centang modul yang ingin ditampilkan, atau klik ikon pensil untuk mengubah judul, tipe inputan (Dropdown / Teks Singkat), serta opsi pilihannya.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Centang modul yang ingin ditampilkan, atau klik ikon pensil untuk mengubah judul, tipe inputan, serta opsi pilihannya.</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-bold">
                 <button type="button" onClick={() => handleSelectAllConfig(true)} className="text-blue-600 hover:underline">Centang Semua</button>
@@ -930,7 +918,6 @@ export default function DivisiKesiswaanView({ showNotification }: any) {
             </div>
           </div>
 
-          {/* Modal Popup Edit Label, Tipe Input, dan Opsi Dropdown */}
           {editingColumnKey && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
               <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-200">
