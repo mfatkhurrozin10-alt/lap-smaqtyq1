@@ -68,7 +68,6 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
   // 2. Fetch Kelas Binaan BK (Aman dari error UUID untuk akun Admin)
   useEffect(() => {
     const fetchBkClasses = async () => {
-      // Jika role admin atau ID mengandung string biasa (bukan UUID asli), lewati query bk_mapping
       if (!user?.id || user.role === 'admin' || user.id === 'admin-123') {
         if (availableClasses.length > 0) {
           setAssignedClasses(availableClasses);
@@ -99,7 +98,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
     }
   }, [user, availableClasses, selectedClass]);
 
-  // 3. Inisialisasi Default 'Hadir' saat Kelas Dipilih
+  // 3. Inisialisasi Default 'Hadir' atau Data yang Sudah Ada saat Kelas/Tanggal Dipilih
   useEffect(() => {
     if (!selectedClass || siswaList.length === 0) return;
     
@@ -135,6 +134,20 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
 
     setLoading(true);
     try {
+      const nisnList = studentsInClass.map(s => s.nisn || s.nis).filter(Boolean);
+
+      // 1. Hapus data absensi lama di tanggal & kelas ini terlebih dahulu (Mendukung fungsi Edit)
+      if (nisnList.length > 0) {
+        const deletePromises = nisnList.map(identifier => 
+          (supabase.from('kehadiran').delete() as any).match({ 
+            tanggal: selectedDate, 
+            nisn: identifier 
+          })
+        );
+        await Promise.all(deletePromises);
+      }
+
+      // 2. Masukkan data absensi baru / hasil perubahan
       const payloadList = Object.entries(attendanceRecords).map(([siswaId, status]) => {
         const foundSiswa = studentsInClass.find(s => s.id === siswaId);
         const identifier = foundSiswa?.nisn || foundSiswa?.nis || '-';
@@ -149,7 +162,7 @@ export default function SistemAbsensiView({ showNotification, user }: any) {
       const { error } = await supabase.from('kehadiran').insert(payloadList);
       if (error) throw error;
       
-      showNotification(`Berhasil merekam absensi ${payloadList.length} peserta didik!`, 'success');
+      showNotification(`Berhasil memperbarui rekap absensi ${selectedClass}!`, 'success');
       await fetchData();
       setActiveTab('rekap_harian');
     } catch (err: any) {
