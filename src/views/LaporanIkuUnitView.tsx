@@ -66,9 +66,9 @@ export default function LaporanIkuUnitView({}: any) {
 
       let rawRows: any[] = [];
 
-      // 4. Petakan data mentah
+      // 4. Petakan data mentah menggunakan kolom yang tepat: `iku_id` dan `target_capaian`
       (progList || []).forEach((prog: any) => {
-        const ikuId = prog.indikator_id || prog.indikator_iku_id || prog.iku_id;
+        const ikuId = prog.iku_id;
         const matchedIku = ikuMap.get(ikuId);
 
         const pLogs = allLogs.filter((l: any) => l.program_id === prog.id);
@@ -80,18 +80,18 @@ export default function LaporanIkuUnitView({}: any) {
         const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
         const avgSkor = filteredLogs.length > 0 ? (totalSkor / filteredLogs.length).toFixed(1) : '0.0';
 
-        // Mengambil target secara akurat dengan memprioritaskan kolom `prog.target`
-        const targetValue = prog.target || prog.target_pencapaian || matchedIku?.target_deskripsi || '-';
+        // Ambil target murni dari kolom `target_capaian` di tabel program_kegiatan
+        const targetValue = prog.target_capaian || matchedIku?.target_deskripsi || '-';
 
         rawRows.push({
           iku_id: ikuId || 'unknown',
-          kode_iku: matchedIku?.kode_iku || prog.kode_iku || 'IKU-UNIT',
-          judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.judul_iku || prog.nama_program,
+          kode_iku: matchedIku?.kode_iku || 'IKU-UNIT',
+          judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.nama_program,
           target: targetValue,
           realisasi: `${avgSkor}%`,
           yayasan: '',
           kegiatan: prog.nama_program || '-',
-          waktu: prog.timeframe || '-',
+          waktu: prog.Timeframe || prog.timeframe || '-',
           logs: filteredLogs
         });
       });
@@ -153,6 +153,7 @@ export default function LaporanIkuUnitView({}: any) {
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
       
+      {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-600 p-6 sm:p-8 rounded-3xl shadow-lg text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold tracking-wide">
@@ -195,6 +196,7 @@ export default function LaporanIkuUnitView({}: any) {
         </div>
       </div>
 
+      {/* TABEL REKAPITULASI IKU */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm border-collapse">
@@ -252,7 +254,7 @@ export default function LaporanIkuUnitView({}: any) {
                         </td>
                       )}
 
-                      {/* TARGET */}
+                      {/* TARGET (Dari kolom target_capaian) */}
                       <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 whitespace-nowrap">
                         {row.target}
                       </td>
