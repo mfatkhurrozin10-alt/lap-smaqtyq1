@@ -38,12 +38,12 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const todayLogs = (logs || []).filter((l: any) => l.waktu_input && l.waktu_input.startsWith(selectedDate));
       
-      const uniqueGuruJurnal = new Set(todayLogs.map(l => l.guru_target).filter(Boolean));
+      const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
       const { data: nilaiList } = await supabase.from('nilai').select('*');
       const todayNilai = (nilaiList || []).filter((n: any) => (n.created_at || '').startsWith(selectedDate) || (n.tanggal || '').startsWith(selectedDate));
-      const uniqueGuruLeger = new Set(todayNilai.map(n => n.guru_id).filter(Boolean));
+      const uniqueGuruLeger = new Set(todayNilai.map((n: any) => n.guru_id).filter(Boolean));
       setLegerStats({ terisi: uniqueGuruLeger.size, totalGuru: 23 });
 
       // 3. Ambil Master Program Kegiatan Harian dari Semua Divisi untuk Tabel Pantauan
@@ -59,7 +59,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           kegiatanNama: prog.nama_program || '-',
           isSudahInput: !!matchedLog,
           skorPersen: matchedLog ? Number(matchedLog.skor_persen || 100) : 0,
-          catatan_temuan: matchedLog?.catatan_temuan || '', // Diperbaiki dari "catatan Temuan" menjadi "catatan_temuan"
+          catatan_temuan: matchedLog?.catatan_temuan || '',
           logId: matchedLog?.id || null,
           timeframe: prog.timeframe || 'Harian'
         };
