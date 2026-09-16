@@ -243,10 +243,12 @@ export default function DivisiTataUsahaView({
     e.preventDefault();
     if (!newKategoriNama || !selectedProgramId) return;
     try {
+      const nextUrutan = kategoriList.length + 1;
       const { error } = await supabase.from('divisi_kategori_indikator').insert([{
         program_id: selectedProgramId,
         nama_kategori: newKategoriNama,
-        tipe_kategori: newKategoriTipe
+        tipe_kategori: newKategoriTipe,
+        urutan: nextUrutan
       }]);
       if (error) throw error;
       setNewKategoriNama('');
