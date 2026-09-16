@@ -17,9 +17,10 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
   const [activeProgram, setActiveProgram] = useState<any>(null);
   const [modalCatatanText, setModalCatatanText] = useState('');
 
-  // Helper Warna Realisasi
+  // Helper Warna Realisasi (Hanya untuk persentase)
   const getScoreTextColor = (scoreStr: string) => {
     if (scoreStr === '-') return 'text-slate-400';
+    if (scoreStr.includes('Kali')) return 'text-blue-600'; // Warna khusus untuk count
     const score = parseFloat(scoreStr) || 0;
     if (score > 66) return 'text-emerald-600';
     if (score > 33) return 'text-amber-600';
@@ -62,11 +63,18 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
       if (progErr) throw progErr;
 
-      // 3. Ambil log pengawasan
+      // 3. Ambil konfigurasi form (untuk mendeteksi target_realisasi_type)
+      const { data: configList } = await supabase.from('divisi_form_config').select('*');
+      const configMap = new Map();
+      (configList || []).forEach((cfg: any) => {
+        configMap.set(cfg.program_id, cfg);
+      });
+
+      // 4. Ambil log pengawasan
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const allLogs = logs || [];
 
-      // 4. Ambil data nilai terpisah (Ulangan Harian, ASTS, dll.) jika ada tabel 'nilai' atau 'penilaian'
+      // 5. Ambil data nilai terpisah (Ulangan Harian, ASTS, dll.)
       const { data: nilaiList } = await supabase.from('nilai').select('*');
       const allNilai = nilaiList || [];
 
@@ -75,6 +83,8 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
       (progList || []).forEach((prog: any) => {
         const ikuId = prog.iku_id;
         const matchedIku = ikuMap.get(ikuId);
+        const progConfig = configMap.get(prog.id) || {};
+        const targetType = progConfig.target_realisasi_type || 'percentage';
 
         // Filter log sesuai bulan
         const pLogs = allLogs.filter((l: any) => l.program_id === prog.id);
@@ -83,29 +93,33 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
           return l.waktu_input && l.waktu_input.startsWith(selectedMonth);
         });
 
-        // SUMBER REALISASI DINAMIS TERPISAH
+        // SUMBER REALISASI DINAMIS BERDASARKAN TIPE TARGET (PERCENTAGE / COUNT)
         let calculatedRealisasi = '-';
         const progNameLower = prog.nama_program?.toLowerCase() || '';
 
-        if (progNameLower.includes('asts') || progNameLower.includes('pts')) {
-          // Khusus nilai ASTS / PTS
-          const astsNilai = allNilai.filter((n: any) => (n.kategori === 'ASTS' || n. jenis === 'ASTS') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
-          if (astsNilai.length > 0) {
-            const sum = astsNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
-            calculatedRealisasi = `${(sum / astsNilai.length).toFixed(1)}%`;
-          }
-        } else if (progNameLower.includes('ulangan harian') || progNameLower.includes('uh')) {
-          // Khusus Ulangan Harian
-          const uhNilai = allNilai.filter((n: any) => (n.kategori === 'UH' || n.jenis === 'UH') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
-          if (uhNilai.length > 0) {
-            const sum = uhNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
-            calculatedRealisasi = `${(sum / uhNilai.length).toFixed(1)}%`;
-          }
+        if (targetType === 'count') {
+          // Jika tipenya COUNT, hitung jumlah baris log yang terinput pada bulan tersebut
+          const totalCount = filteredLogs.length;
+          calculatedRealisasi = `${totalCount} Kali`;
         } else {
-          // Standar dari log pengawasan
-          if (filteredLogs.length > 0) {
-            const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
-            calculatedRealisasi = `${(totalSkor / filteredLogs.length).toFixed(1)}%`;
+          // Jika tipenya PERCENTAGE, hitung rata-rata skor persentase
+          if (progNameLower.includes('asts') || progNameLower.includes('pts')) {
+            const astsNilai = allNilai.filter((n: any) => (n.kategori === 'ASTS' || n.jenis === 'ASTS') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
+            if (astsNilai.length > 0) {
+              const sum = astsNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
+              calculatedRealisasi = `${(sum / astsNilai.length).toFixed(1)}%`;
+            }
+          } else if (progNameLower.includes('ulangan harian') || progNameLower.includes('uh')) {
+            const uhNilai = allNilai.filter((n: any) => (n.kategori === 'UH' || n.jenis === 'UH') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
+            if (uhNilai.length > 0) {
+              const sum = uhNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
+              calculatedRealisasi = `${(sum / uhNilai.length).toFixed(1)}%`;
+            }
+          } else {
+            if (filteredLogs.length > 0) {
+              const totalSkor = filteredLogs.reduce((acc: number, curr: any) => acc + Number(curr.skor_persen || 0), 0);
+              calculatedRealisasi = `${(totalSkor / filteredLogs.length).toFixed(1)}%`;
+            }
           }
         }
 
@@ -124,10 +138,10 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         });
       });
 
-      // 5. Urutkan berdasarkan IKU
+      // 6. Urutkan berdasarkan IKU
       rawRows.sort((a, b) => a.kode_iku.localeCompare(b.kode_iku));
 
-      // 6. Hitung rowspan untuk NO dan INDIKATOR
+      // 7. Hitung rowspan untuk NO dan INDIKATOR
       let finalRows: any[] = [];
       let groupCounter = 1;
       let i = 0;
@@ -197,7 +211,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
       if (showNotification) showNotification('Catatan evaluasi berhasil disimpan ke database!', 'success');
       setIsModalOpen(false);
-      fetchRekapData(); // Refresh data agar langsung tampil di tabel
+      fetchRekapData();
     } catch (err) {
       console.error(err);
       if (showNotification) showNotification('Gagal menyimpan catatan evaluasi.', 'error');
@@ -223,7 +237,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
       {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-600 p-6 sm:p-8 rounded-3xl shadow-lg text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold tracking-wide">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/25 backdrop-blur-md rounded-full text-xs font-bold tracking-wide">
             <FileText size={14} /> DASHBOARD LAPORAN SEKOLAH
           </div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight">Pantau capaian IKU dan tuliskan catatan evaluasi per kegiatan tiap bulan</h2>
@@ -243,7 +257,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
           <button 
             onClick={() => window.print()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-purple-900 hover:bg-slate-100 font-bold text-xs rounded-2xl shadow-md transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-purple-900 hover:bg-slate-100 font-bold text-xs rounded-2xl shadow-md transition-all cursor-pointer"
           >
             <Printer size={15} /> PDF
           </button>
