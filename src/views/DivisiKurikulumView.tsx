@@ -111,7 +111,7 @@ export default function DivisiKurikulumView({
             setSelectedProgramId(targetProg.id);
           } else {
             // Memastikan program yg sedang aktif ada di filter list
-            const currentSelected = prog.find(p => p.id === selectedProgramId);
+            const currentSelected = prog.find((p: any) => p.id === selectedProgramId);
             if (currentSelected && currentSelected.timeframe) {
               setTimeframe(currentSelected.timeframe);
             }
@@ -719,7 +719,7 @@ export default function DivisiKurikulumView({
               
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                  onClick={() => setCurrentPage((p: number) => Math.max(p - 1, 1))}
                   disabled={currentPage === 1}
                   className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
@@ -729,7 +729,7 @@ export default function DivisiKurikulumView({
                   Hal {currentPage} dari {totalPages}
                 </span>
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                  onClick={() => setCurrentPage((p: number) => Math.min(p + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
