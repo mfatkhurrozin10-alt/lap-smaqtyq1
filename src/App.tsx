@@ -19,6 +19,7 @@ import DivisiHumasView from './views/DivisiHumasView';
 import DivisiSarprasView from './views/DivisiSarprasView';
 import DivisiBahasaView from './views/DivisiBahasaView';
 import DivisiTataUsahaView from './views/DivisiTataUsahaView';
+import DashboardPantauanView from './views/DashboardPantauanView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard-pantauan');
@@ -79,12 +80,10 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard-pantauan':
         return (
-          <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-100 h-full flex items-center justify-center">
-            <div className="text-center">
-              <h2 className="text-xl font-bold text-slate-800">Dashboard Pantauan Sekolah</h2>
-              <p className="text-slate-500 mt-2">Tampilan Dashboard utama sistem...</p>
-            </div>
-          </div>
+          <DashboardPantauanView 
+            showNotification={showNotification} 
+            onNavigateToDivisi={handleNavigateToKegiatan} // Menggunakan fungsi navigasi yang sudah ada!
+          />
         );
       
       case 'laporan-iku':
