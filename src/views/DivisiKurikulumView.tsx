@@ -37,32 +37,32 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
   const itemsPerPage = 10;
 
-  // Konfigurasi Kolom, Label, Tipe Input, dan Opsi Pilihan Kustom (disesuaikan dengan skema database Supabase)
+  // Konfigurasi Kolom, Label, Tipe Input ('dropdown' | 'input'), dan Opsi Pilihan Kustom
   const [formConfig, setFormConfig] = useState<any>({
     show_petugas: true,
     show_guru: true,
     show_mapel: true,
     show_kelas: true,
     show_jam: true,
-    show_santri_abse: true,
+    show_santri_absen: true,
     label_petugas: 'Petugas (PJ)',
     label_guru: 'Guru / Pengajar',
     label_mapel: 'Mata Pelajaran',
     label_kelas: 'Kelas',
     label_jam: 'Jam Ke-',
-    label_santri_abse: 'Keterangan / Absen',
+    label_santri_absen: 'Keterangan / Absen',
     type_petugas: 'input',
     type_guru: 'input',
     type_mapel: 'input',
     type_kelas: 'input',
     type_jam: 'input',
-    type_santri_abse: 'input',
+    type_santri_absen: 'input',
     options_petugas: [],
     options_guru: [],
     options_mapel: [],
     options_kelas: [],
     options_jam: [],
-    options_santri_at: []
+    options_santri_absen: []
   });
 
   const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
@@ -297,7 +297,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       show_mapel: { label: 'label_mapel', type: 'type_mapel', opts: 'options_mapel' },
       show_kelas: { label: 'label_kelas', type: 'type_kelas', opts: 'options_kelas' },
       show_jam: { label: 'label_jam', type: 'type_jam', opts: 'options_jam' },
-      show_santri_abse: { label: 'label_santri_abse', type: 'type_santri_abse', opts: 'options_santri_at' },
+      show_santri_absen: { label: 'label_santri_absen', type: 'type_santri_absen', opts: 'options_santri_absen' },
     };
 
     const targetMap = mapConfig[columnKey];
@@ -344,7 +344,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
       show_mapel: status,
       show_kelas: status,
       show_jam: status,
-      show_santri_abse: status
+      show_santri_absen: status
     };
     setFormConfig(updated);
     if (!selectedProgramId) return;
@@ -518,7 +518,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
               {renderDynamicInput('show_mapel', 'label_mapel', 'type_mapel', 'options_mapel', formInput.mapel_kelas, (val) => setFormInput({...formInput, mapel_kelas: val}))}
               {renderDynamicInput('show_kelas', 'label_kelas', 'type_kelas', 'options_kelas', formInput.kelas_dipilih, (val) => setFormInput({...formInput, kelas_dipilih: val}))}
               {renderDynamicInput('show_jam', 'label_jam', 'type_jam', 'options_jam', formInput.jam_pembelajaran, (val) => setFormInput({...formInput, jam_pembelajaran: val}))}
-              {renderDynamicInput('show_santri_abse', 'label_santri_abse', 'type_santri_abse', 'options_santri_at', formInput.santri_absen, (val) => setFormInput({...formInput, santri_absen: val}))}
+              {renderDynamicInput('show_santri_absen', 'label_santri_absen', 'type_santri_absen', 'options_santri_absen', formInput.santri_absen, (val) => setFormInput({...formInput, santri_absen: val}))}
             </div>
           </div>
 
@@ -636,7 +636,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                   {formConfig.show_mapel && <th className="px-6 py-4">{formConfig.label_mapel}</th>}
                   {formConfig.show_kelas && <th className="px-6 py-4">{formConfig.label_kelas}</th>}
                   {formConfig.show_jam && <th className="px-6 py-4">{formConfig.label_jam}</th>}
-                  {formConfig.show_santri_abse && <th className="px-6 py-4">{formConfig.label_santri_abse}</th>}
+                  {formConfig.show_santri_absen && <th className="px-6 py-4">{formConfig.label_santri_absen}</th>}
                   <th className="px-6 py-4">Skor</th>
                   <th className="px-6 py-4">Catatan</th>
                   <th className="px-6 py-4 text-center">Aksi</th>
@@ -661,7 +661,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                         {formConfig.show_mapel && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '-'}</td>}
                         {formConfig.show_kelas && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '-'}</td>}
                         {formConfig.show_jam && <td className="px-6 py-4 text-slate-600">{item.jam_pembelajaran || '-'}</td>}
-                        {formConfig.show_santri_abse && <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>}
+                        {formConfig.show_santri_absen && <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>}
                         <td className={`px-6 py-4 font-black ${getScoreTextColor(skorVal)}`}>
                           {skorVal}%
                         </td>
@@ -878,7 +878,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
                 { key: 'show_mapel', defaultLabel: 'Mata Pelajaran', labelKey: 'label_mapel', typeKey: 'type_mapel', optsKey: 'options_mapel' },
                 { key: 'show_kelas', defaultLabel: 'Kelas', labelKey: 'label_kelas', typeKey: 'type_kelas', optsKey: 'options_kelas' },
                 { key: 'show_jam', defaultLabel: 'Jam Ke-', labelKey: 'label_jam', typeKey: 'type_jam', optsKey: 'options_jam' },
-                { key: 'show_santri_abse', defaultLabel: 'Keterangan / Absen', labelKey: 'label_santri_abse', typeKey: 'type_santri_abse', optsKey: 'options_santri_at' },
+                { key: 'show_santri_absen', defaultLabel: 'Keterangan / Absen', labelKey: 'label_santri_absen', typeKey: 'type_santri_absen', optsKey: 'options_santri_absen' },
               ].map((item) => {
                 const currentLabel = formConfig[item.labelKey] || item.defaultLabel;
                 const isChecked = formConfig[item.key];
