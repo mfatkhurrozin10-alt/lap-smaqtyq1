@@ -38,11 +38,9 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const todayLogs = (logs || []).filter((l: any) => l.waktu_input && l.waktu_input.startsWith(selectedDate));
       
-      // Hitung guru mengisi jurnal berdasarkan log yang masuk hari ini
       const uniqueGuruJurnal = new Set(todayLogs.map(l => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // Hitung leger nilai (ambil dari tabel nilai hari ini atau bulan ini)
       const { data: nilaiList } = await supabase.from('nilai').select('*');
       const todayNilai = (nilaiList || []).filter((n: any) => (n.created_at || '').startsWith(selectedDate) || (n.tanggal || '').startsWith(selectedDate));
       const uniqueGuruLeger = new Set(todayNilai.map(n => n.guru_id).filter(Boolean));
@@ -61,7 +59,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           kegiatanNama: prog.nama_program || '-',
           isSudahInput: !!matchedLog,
           skorPersen: matchedLog ? Number(matchedLog.skor_persen || 100) : 0,
-          catatan Temuan: matchedLog?.catatan_temuan || '',
+          catatan_temuan: matchedLog?.catatan_temuan || '', // Diperbaiki dari "catatan Temuan" menjadi "catatan_temuan"
           logId: matchedLog?.id || null,
           timeframe: prog.timeframe || 'Harian'
         };
@@ -87,7 +85,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Dashboard Pantauan Sekolah</h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Pantau kepatuhan input kegiatan harian seluruh divisi dan keaktifan guru secara *real-time*</p>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Pantau kepatuhan input kegiatan harian seluruh divisi dan keaktifan guru secara real-time</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -242,7 +240,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
                     </td>
 
                     <td className="px-6 py-4 text-slate-600 text-xs italic max-w-xs truncate">
-                      {row.catatanTemuan || <span className="text-slate-300">Tidak ada catatan</span>}
+                      {row.catatan_temuan || <span className="text-slate-300">Tidak ada catatan</span>}
                     </td>
 
                     <td className="px-6 py-4 text-center">
