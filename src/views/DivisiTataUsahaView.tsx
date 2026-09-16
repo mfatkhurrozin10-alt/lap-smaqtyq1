@@ -1,4 +1,4 @@
-// src/views/DivisiKurikulumView.tsx
+// src/views/DivisiTataUsahaView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -110,7 +110,6 @@ export default function DivisiTataUsahaView({
             const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
             setSelectedProgramId(targetProg.id);
           } else {
-            // Memastikan program yg sedang aktif ada di filter list
             const currentSelected = prog.find((p: any) => p.id === selectedProgramId);
             if (currentSelected && currentSelected.timeframe) {
               setTimeframe(currentSelected.timeframe);
@@ -152,7 +151,7 @@ export default function DivisiTataUsahaView({
     fetchProgramDetail();
   }, [selectedProgramId]);
 
-const calculateCurrentScore = () => {
+  const calculateCurrentScore = () => {
     let totalButir = 0;
     let temuanAktif = 0;
     
@@ -164,10 +163,8 @@ const calculateCurrentScore = () => {
         const isChecked = !!checkedItems[butir.id];
         
         if (isPositif) {
-          // Jika kategori POSITIF: Dicentang = Bagus, TIDAK dicentang = Masalah
           if (!isChecked) temuanAktif++;
         } else {
-          // Jika kategori NEGATIF: Dicentang = Masalah, TIDAK dicentang = Bagus
           if (isChecked) temuanAktif++;
         }
       });
@@ -808,7 +805,6 @@ const calculateCurrentScore = () => {
 
             <div className="space-y-2">
               {(() => {
-                // Hitung ulang daftar masalah berdasarkan log yang tersimpan & tipe kategori
                 let daftarMasalah: any[] = [];
                 if (selectedDetailLog.detail_ceklis) {
                   kategoriList.forEach((kat: any) => {
@@ -875,23 +871,88 @@ const calculateCurrentScore = () => {
       )}
 
       {activeSubTab === 'realisasi' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Target Resmi IKU ({timeframe})</p>
-            <h3 className="text-3xl font-black text-slate-900">100%</h3>
-            <p className="text-xs text-slate-500">Target indikator kinerja utama program</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+              <p className="text-xs font-bold text-slate-400 uppercase">Target Resmi IKU ({timeframe})</p>
+              <h3 className="text-3xl font-black text-slate-900">100%</h3>
+              <p className="text-xs text-slate-500">Target indikator kinerja utama program</p>
+            </div>
+            
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+              <p className="text-xs font-bold text-slate-400 uppercase">Total Frekuensi Pengisian (Count)</p>
+              <h3 className="text-3xl font-black text-blue-600">
+                {riwayatList.length} <span className="text-sm font-normal text-slate-500">Kali Diisi</span>
+              </h3>
+              <p className="text-xs text-slate-500">Akumulasi total log laporan masuk</p>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+              <p className="text-xs font-bold text-slate-400 uppercase">Rata-rata Realisasi Skor</p>
+              <h3 className={`text-3xl font-black ${getScoreTextColor(averageRealisasi)}`}>
+                {averageRealisasi.toFixed(1)}%
+              </h3>
+              <p className="text-xs text-slate-500">Rata-rata kepatuhan keseluruhan</p>
+            </div>
           </div>
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Realisasi Tercapai</p>
-            <h3 className={`text-3xl font-black ${getScoreTextColor(averageRealisasi)}`}>
-              {averageRealisasi.toFixed(1)}%
-            </h3>
-            <p className="text-xs text-slate-500">Rata-rata kepatuhan dari {riwayatList.length} sesi</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Keterisian Data</p>
-            <h3 className="text-3xl font-black text-emerald-600">{riwayatList.length} Laporan</h3>
-            <p className="text-xs text-slate-500">Total formulir ceklis berhasil diinput</p>
+
+          {/* Tabel Rekapitulasi Hitungan (Count) Per Bulan */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+            <h3 className="font-bold text-slate-800">Rekapitulasi Frekuensi Pengisian Form (Count) Per Bulan</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <tr>
+                    <th className="px-6 py-3">Bulan & Tahun</th>
+                    <th className="px-6 py-3">Jumlah Pengisian (Count)</th>
+                    <th className="px-6 py-3">Rata-rata Skor Bulan Terkait</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(() => {
+                    const groupedByMonth: { [key: string]: any[] } = {};
+                    riwayatList.forEach((item: any) => {
+                      const monthKey = new Date(item.waktu_input).toISOString().slice(0, 7);
+                      if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
+                      groupedByMonth[monthKey].push(item);
+                    });
+
+                    const monthKeys = Object.keys(groupedByMonth).sort().reverse();
+                    const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+                    if (monthKeys.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={3} className="text-center py-8 text-slate-400">Belum ada data rekam jejak pengisian.</td>
+                        </tr>
+                      );
+                    }
+
+                    return monthKeys.map((mKey) => {
+                      const [y, m] = mKey.split('-');
+                      const labelBulan = `${monthNames[parseInt(m) - 1]} ${y}`;
+                      const logsInMonth = groupedByMonth[mKey];
+                      const countPengisian = logsInMonth.length;
+                      const avgSkorBulan = logsInMonth.reduce((acc, curr) => acc + Number(curr.skor_persen || 0), 0) / countPengisian;
+
+                      return (
+                        <tr key={mKey} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 font-bold text-slate-800">{labelBulan}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-3 py-1 bg-blue-50 text-blue-700 font-black rounded-lg border border-blue-100">
+                              {countPengisian} Kali Pengisian
+                            </span>
+                          </td>
+                          <td className={`px-6 py-4 font-bold ${getScoreTextColor(avgSkorBulan)}`}>
+                            {avgSkorBulan.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
