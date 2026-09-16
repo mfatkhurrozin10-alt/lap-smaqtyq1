@@ -12,6 +12,7 @@ export default function SistemAbsensiView({ showNotification }: any) {
   
   const [siswaList, setSiswaList] = useState<any[]>([]);
   const [kehadiranList, setKehadiranList] = useState<any[]>([]);
+  const [guruList, setGuruList] = useState<any[]>([]); // State untuk data guru
   const [fetchLoading, setFetchLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -28,6 +29,19 @@ export default function SistemAbsensiView({ showNotification }: any) {
         else startSiswa += 1000;
       }
       setSiswaList(allSiswa);
+
+      // Ambil data guru untuk informasi wali kelas
+      let allGuru: any[] = [];
+      let startGuru = 0;
+      let hasMoreGuru = true;
+      while (hasMoreGuru) {
+        const { data, error } = await supabase.from('guru').select('*').range(startGuru, startGuru + 999);
+        if (error) throw error;
+        allGuru = [...allGuru, ...(data || [])];
+        if ((data || []).length < 1000) hasMoreGuru = false;
+        else startGuru += 1000;
+      }
+      setGuruList(allGuru);
 
       const startDate = `${selectedMonth}-01`;
       const [year, month] = selectedMonth.split('-').map(Number);
@@ -55,6 +69,16 @@ export default function SistemAbsensiView({ showNotification }: any) {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => s.kelas?.trim()).filter(Boolean))).sort(), [siswaList]);
+
+  // Helper untuk mendapatkan Nama Wali Kelas berdasarkan Nama Kelas
+  const getWaliKelas = useCallback((kelasName: string) => {
+    const found = guruList.find(g => {
+      const roleMatch = (g.role || '').toLowerCase().includes('wali kelas');
+      const binaanMatch = (g.kelas_binaan || '').trim().toLowerCase() === kelasName.trim().toLowerCase();
+      return roleMatch && binaanMatch;
+    });
+    return found ? found.nama : null;
+  }, [guruList]);
 
   useEffect(() => {
     if (availableClasses.length > 0 && !selectedClass) {
@@ -205,10 +229,16 @@ export default function SistemAbsensiView({ showNotification }: any) {
                       {dailyData.map((row, idx) => {
                         const isInputted = (row.hadir + row.sakit + row.izin + row.alfa) > 0;
                         const pct = row.total > 0 ? ((row.hadir / row.total) * 100).toFixed(1) : 0;
+                        const waliKelasName = getWaliKelas(row.kelas);
                         return (
                           <tr key={row.kelas} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-5 py-3 text-slate-400 font-mono">{idx + 1}</td>
-                            <td className="px-5 py-3 font-bold text-slate-800">{row.kelas}</td>
+                            <td className="px-5 py-3">
+                              <div className="font-bold text-slate-800">{row.kelas}</div>
+                              <div className="text-[11px] text-slate-400 font-normal">
+                                Wali: {waliKelasName || <span className="italic text-slate-300">Belum diset</span>}
+                              </div>
+                            </td>
                             <td className="px-5 py-3 text-center font-bold text-slate-600">{row.total}</td>
                             <td className="px-5 py-3 text-center font-bold text-emerald-600">{row.hadir}</td>
                             <td className="px-5 py-3 text-center font-bold text-amber-600">{row.sakit}</td>
@@ -244,8 +274,17 @@ export default function SistemAbsensiView({ showNotification }: any) {
                 <div className="space-y-1.5 flex-1 min-w-[200px]">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Kelas</label>
                   <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none">
-                    {availableClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                    {availableClasses.map(cls => (
+                      <option key={cls} value={cls}>
+                        {cls} {getWaliKelas(cls) ? `(Wali: ${getWaliKelas(cls)})` : ''}
+                      </option>
+                    ))}
                   </select>
+                  {selectedClass && (
+                    <p className="text-[11px] text-slate-400 pl-1 font-medium">
+                      Wali Kelas: <span className="font-bold text-slate-600">{getWaliKelas(selectedClass) || 'Belum diset'}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5 flex-1 min-w-[200px]">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Bulan</label>
@@ -311,16 +350,24 @@ export default function SistemAbsensiView({ showNotification }: any) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {monthlyData.map(row => (
-                      <tr key={row.kelas} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-3.5 font-extrabold text-slate-800">{row.kelas}</td>
-                        <td className="px-6 py-3.5 text-center font-bold text-emerald-600">{row.hadir}</td>
-                        <td className="px-6 py-3.5 text-center font-bold text-amber-600">{row.sakit}</td>
-                        <td className="px-6 py-3.5 text-center font-bold text-blue-600">{row.izin}</td>
-                        <td className="px-6 py-3.5 text-center font-bold text-rose-600">{row.alfa}</td>
-                        <td className="px-6 py-3.5 text-center"><span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{row.pct.toFixed(1)}%</span></td>
-                      </tr>
-                    ))}
+                    {monthlyData.map(row => {
+                      const waliKelasName = getWaliKelas(row.kelas);
+                      return (
+                        <tr key={row.kelas} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-6 py-3.5">
+                            <div className="font-extrabold text-slate-800">{row.kelas}</div>
+                            <div className="text-[11px] text-slate-400 font-normal">
+                              Wali: {waliKelasName || <span className="italic text-slate-300">Belum diset</span>}
+                            </div>
+                          </td>
+                          <td className="px-6 py-3.5 text-center font-bold text-emerald-600">{row.hadir}</td>
+                          <td className="px-6 py-3.5 text-center font-bold text-amber-600">{row.sakit}</td>
+                          <td className="px-6 py-3.5 text-center font-bold text-blue-600">{row.izin}</td>
+                          <td className="px-6 py-3.5 text-center font-bold text-rose-600">{row.alfa}</td>
+                          <td className="px-6 py-3.5 text-center"><span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{row.pct.toFixed(1)}%</span></td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
