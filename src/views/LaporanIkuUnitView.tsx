@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { FileText, Printer, Calendar, Edit3, X, Sparkles } from 'lucide-react';
 
-export default function LaporanIkuUnitView({ showNotification }: any) {
+export default function LaporanIkuUnitView({ showNotification, onNavigateToKegiatan }: any) {
   const [loading, setLoading] = useState(true);
   const [divisiList, setDivisiList] = useState<any[]>([]);
   const [selectedDivisiId, setSelectedDivisiId] = useState<string>('');
@@ -120,7 +120,7 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
           kegiatan: prog.nama_program || '-',
           waktu: prog.timeframe || '-',
           logs: filteredLogs,
-          catatan_evaluasi: prog.catatan_evaluasi || '' // Mengambil catatan langsung dari database program kegiatan
+          catatan_evaluasi: prog.catatan_evaluasi || '' 
         });
       });
 
@@ -325,8 +325,24 @@ export default function LaporanIkuUnitView({ showNotification }: any) {
                         {row.yayasan}
                       </td>
 
-                      <td className="px-6 py-5 border-r border-slate-100 font-bold text-slate-800 text-xs">
-                        {row.kegiatan}
+                      <td className="px-6 py-5 border-r border-slate-100 font-bold text-xs">
+                        {onNavigateToKegiatan ? (
+                          <button 
+                            onClick={() => {
+                              onNavigateToKegiatan({
+                                divisiId: selectedDivisiId,
+                                namaDivisi: currentDivisiObj?.nama_divisi,
+                                programId: row.id,
+                                timeframe: row.waktu
+                              });
+                            }}
+                            className="text-blue-600 hover:text-blue-800 hover:underline transition-colors text-left cursor-pointer w-full"
+                          >
+                            {row.kegiatan}
+                          </button>
+                        ) : (
+                          <span className="text-slate-800">{row.kegiatan}</span>
+                        )}
                       </td>
 
                       <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium">

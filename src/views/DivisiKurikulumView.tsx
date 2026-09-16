@@ -3,7 +3,12 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function DivisiKurikulumView({ showNotification }: any) {
+export default function DivisiKurikulumView({ 
+  showNotification, 
+  initialTab = 'form', 
+  initialTimeframe = 'Harian', 
+  initialProgramId = '' 
+}: any) {
   const [loading, setLoading] = useState(true);
   const [divisiData, setDivisiData] = useState<any>({
     nama_divisi: 'Kurikulum',
@@ -11,10 +16,10 @@ export default function DivisiKurikulumView({ showNotification }: any) {
   });
   
   const [programList, setProgramList] = useState<any[]>([]);
-  const [selectedProgramId, setSelectedProgramId] = useState<string>('');
-  const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>('form');
+  const [selectedProgramId, setSelectedProgramId] = useState<string>(initialProgramId);
+  const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>(initialTab);
   
-  const [timeframe, setTimeframe] = useState('Harian');
+  const [timeframe, setTimeframe] = useState(initialTimeframe);
 
   const [formInput, setFormInput] = useState({
     petugas_pj: '',
@@ -99,9 +104,18 @@ export default function DivisiKurikulumView({ showNotification }: any) {
         const { data: prog } = await supabase.from('program_kegiatan').select('*, indikator_iku(kode_iku, judul_iku)').eq('divisi_id', divisiObj.id);
         if (prog && prog.length > 0) {
           setProgramList(prog);
-          const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
-          const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
-          setSelectedProgramId(targetProg.id);
+          
+          if (!selectedProgramId) {
+            const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
+            const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
+            setSelectedProgramId(targetProg.id);
+          } else {
+            // Memastikan program yg sedang aktif ada di filter list
+            const currentSelected = prog.find(p => p.id === selectedProgramId);
+            if (currentSelected && currentSelected.timeframe) {
+              setTimeframe(currentSelected.timeframe);
+            }
+          }
         }
       }
     } catch (err) {
@@ -113,7 +127,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
 
   useEffect(() => {
     fetchData();
-  }, [timeframe]);
+  }, [timeframe]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchProgramDetail = async () => {
     if (!selectedProgramId) return;
@@ -436,7 +450,7 @@ export default function DivisiKurikulumView({ showNotification }: any) {
             {['Harian', 'Mingguan', 'Bulanan', 'Tahunan'].map(tf => (
               <button
                 key={tf}
-                onClick={() => setTimeframe(tf)}
+                onClick={() => { setTimeframe(tf); setSelectedProgramId(''); }}
                 className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${timeframe === tf ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 {tf}
