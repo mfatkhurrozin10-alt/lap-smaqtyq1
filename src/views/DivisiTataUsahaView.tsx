@@ -129,11 +129,17 @@ export default function DivisiTataUsahaView({
     fetchData();
   }, [timeframe]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchProgramDetail = async () => {
+const fetchProgramDetail = async () => {
     if (!selectedProgramId) return;
     try {
-      // Ambil data program kegiatan untuk membaca target_realisasi_type
-      const { data: progObj } = await supabase.from('program_kegiatan').select('*').eq('id', selectedProgramId).single();
+      // Perbaikan: Gunakan .eq().then() atau ambil dengan [0] untuk menghindari error TypeScript pada .single()
+      const { data: progList } = await supabase
+        .from('program_kegiatan')
+        .select('*')
+        .eq('id', selectedProgramId);
+
+      const progObj = progList && progList.length > 0 ? progList[0] : null;
+
       if (progObj) {
         setFormConfig((prev: any) => ({ 
           ...prev, 
