@@ -1,9 +1,14 @@
-// src/views/DivisiTataUsahaView.tsx
+// src/views/DivisiKurikulumView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function DivisiTataUsahaView({ showNotification }: any) {
+export default function DivisiTataUsahaView({ 
+  showNotification, 
+  initialTab = 'form', 
+  initialTimeframe = 'Harian', 
+  initialProgramId = '' 
+}: any) {
   const [loading, setLoading] = useState(true);
   const [divisiData, setDivisiData] = useState<any>({
     nama_divisi: 'Tata Usaha',
@@ -11,17 +16,17 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
   });
   
   const [programList, setProgramList] = useState<any[]>([]);
-  const [selectedProgramId, setSelectedProgramId] = useState<string>('');
-  const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>('form');
+  const [selectedProgramId, setSelectedProgramId] = useState<string>(initialProgramId);
+  const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>(initialTab);
   
-  const [timeframe, setTimeframe] = useState('Harian');
+  const [timeframe, setTimeframe] = useState(initialTimeframe);
 
   const [formInput, setFormInput] = useState({
     petugas_pj: '',
     guru_target: '',
     mapel_kelas: '',
     kelas_dipilih: '',
-    jam_pembelajaran: '08:00 - Selesai',
+    jam_pembelajaran: '1-2',
     santri_absen: 'Nihil',
     catatan: ''
   });
@@ -46,11 +51,11 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
     show_jam: true,
     show_santri_absen: true,
     label_petugas: 'Petugas (PJ)',
-    label_guru: 'Pegawai / Target',
-    label_mapel: 'Layanan / Administrasi',
-    label_kelas: 'Bagian / Unit',
-    label_jam: 'Waktu Pelayanan',
-    label_santri_absen: 'Keterangan Dokumen',
+    label_guru: 'Guru / Pengajar',
+    label_mapel: 'Mata Pelajaran',
+    label_kelas: 'Kelas',
+    label_jam: 'Jam Ke-',
+    label_santri_absen: 'Keterangan / Absen',
     type_petugas: 'input',
     type_guru: 'input',
     type_mapel: 'input',
@@ -92,16 +97,25 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
     setLoading(true);
     try {
       const { data: divList } = await supabase.from('divisi').select('*');
-      const divisiObj = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('tata usaha') || d.nama_divisi?.toLowerCase().includes('tu')) || divList?.[0];
+      const divisiObj = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('tata usaha')) || divList?.[0];
 
       if (divisiObj) {
         setDivisiData(divisiObj);
         const { data: prog } = await supabase.from('program_kegiatan').select('*, indikator_iku(kode_iku, judul_iku)').eq('divisi_id', divisiObj.id);
         if (prog && prog.length > 0) {
           setProgramList(prog);
-          const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
-          const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
-          setSelectedProgramId(targetProg.id);
+          
+          if (!selectedProgramId) {
+            const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
+            const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
+            setSelectedProgramId(targetProg.id);
+          } else {
+            // Memastikan program yg sedang aktif ada di filter list
+            const currentSelected = prog.find((p: any) => p.id === selectedProgramId);
+            if (currentSelected && currentSelected.timeframe) {
+              setTimeframe(currentSelected.timeframe);
+            }
+          }
         }
       }
     } catch (err) {
@@ -113,7 +127,7 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
 
   useEffect(() => {
     fetchData();
-  }, [timeframe]);
+  }, [timeframe]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchProgramDetail = async () => {
     if (!selectedProgramId) return;
@@ -138,15 +152,27 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
     fetchProgramDetail();
   }, [selectedProgramId]);
 
-  const calculateCurrentScore = () => {
+const calculateCurrentScore = () => {
     let totalButir = 0;
     let temuanAktif = 0;
+    
     kategoriList.forEach(kat => {
+      const isPositif = kat.tipe_kategori?.toLowerCase().includes('positif');
+      
       kat.divisi_butir_ceklis?.forEach((butir: any) => {
         totalButir++;
-        if (checkedItems[butir.id]) temuanAktif++;
+        const isChecked = !!checkedItems[butir.id];
+        
+        if (isPositif) {
+          // Jika kategori POSITIF: Dicentang = Bagus, TIDAK dicentang = Masalah
+          if (!isChecked) temuanAktif++;
+        } else {
+          // Jika kategori NEGATIF: Dicentang = Masalah, TIDAK dicentang = Bagus
+          if (isChecked) temuanAktif++;
+        }
       });
     });
+    
     const skorPersen = totalButir > 0 ? Number(((1 - (temuanAktif / totalButir)) * 100).toFixed(1)) : 100;
     const skala = Number((skorPersen / 33.3).toFixed(2));
     return { skorPersen, skala };
@@ -173,12 +199,12 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
       if (editingLogId) {
         const { error } = await supabase.from('divisi_log_pengawasan').update(payload).eq('id', editingLogId);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan tata usaha berhasil diperbarui!', 'success');
+        if (showNotification) showNotification('Laporan Tata Usaha berhasil diperbarui!', 'success');
         setEditingLogId(null);
       } else {
         const { error } = await supabase.from('divisi_log_pengawasan').insert([payload]);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan tata usaha baru berhasil disimpan!', 'success');
+        if (showNotification) showNotification('Laporan Tata Usaha baru berhasil disimpan!', 'success');
       }
 
       setCheckedItems({});
@@ -197,7 +223,7 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
       guru_target: item.guru_target || '',
       mapel_kelas: item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '',
       kelas_dipilih: item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '',
-      jam_pembelajaran: item.jam_pembelajaran || '08:00 - Selesai',
+      jam_pembelajaran: item.jam_pembelajaran || '1-2',
       santri_absen: item.santri_absen || 'Nihil',
       catatan: item.catatan_temuan || ''
     });
@@ -428,15 +454,15 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Divisi {divisiData?.nama_divisi || 'Tata Usaha'}</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Koordinator: <span className="font-semibold text-slate-700">{divisiData?.nama_koordinator || 'Tim Tata Usaha'}</span></p>
+          <p className="text-sm text-slate-500 mt-0.5">Koordinator: <span className="font-semibold text-slate-700">{divisiData?.nama_koordinator || 'Tim Kurikulum'}</span></p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex bg-slate-100 p-1 rounded-xl">
-            {['Harian', 'Mingguan', 'Bulanan', 'Tahunan'].map(tf => (
+            {['Harian', 'Mingguan', 'Bulanan', 'Semesteran', 'Tahunan'].map(tf => (
               <button
                 key={tf}
-                onClick={() => setTimeframe(tf)}
+                onClick={() => { setTimeframe(tf); setSelectedProgramId(''); }}
                 className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${timeframe === tf ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 {tf}
@@ -579,7 +605,7 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
                 {editingLogId && (
                   <button 
                     type="button" 
-                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '08:00 - Selesai', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
+                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
                     className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
                   >
                     Batal Edit
@@ -705,7 +731,7 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
               
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                  onClick={() => setCurrentPage((p: number) => Math.max(p - 1, 1))}
                   disabled={currentPage === 1}
                   className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
@@ -715,7 +741,7 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
                   Hal {currentPage} dari {totalPages}
                 </span>
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                  onClick={() => setCurrentPage((p: number) => Math.min(p + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
@@ -781,35 +807,51 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">RINCIAN INDIKATOR MASALAH / TEMUAN DICENTANG</h4>
-                <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100">
-                  {selectedDetailLog.detail_ceklis ? Object.values(selectedDetailLog.detail_ceklis).filter(Boolean).length : 0} Temuan
-                </span>
-              </div>
+              {(() => {
+                // Hitung ulang daftar masalah berdasarkan log yang tersimpan & tipe kategori
+                let daftarMasalah: any[] = [];
+                if (selectedDetailLog.detail_ceklis) {
+                  kategoriList.forEach((kat: any) => {
+                    const isPositif = kat.tipe_kategori?.toLowerCase().includes('positif');
+                    kat.divisi_butir_ceklis?.forEach((b: any) => {
+                      const isChecked = !!selectedDetailLog.detail_ceklis[b.id];
+                      
+                      if (isPositif && !isChecked) {
+                        daftarMasalah.push({ nama: b.nama_butir, label: 'Belum Tercapai' });
+                      } else if (!isPositif && isChecked) {
+                        daftarMasalah.push({ nama: b.nama_butir, label: 'Temuan Masalah' });
+                      }
+                    });
+                  });
+                }
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 max-h-40 overflow-y-auto">
-                {selectedDetailLog.detail_ceklis && Object.keys(selectedDetailLog.detail_ceklis).length > 0 ? (
-                  Object.entries(selectedDetailLog.detail_ceklis)
-                    .filter(([_, val]) => val === true)
-                    .map(([key], i) => {
-                      let namaButirItem = key;
-                      kategoriList.forEach(kat => {
-                        kat.divisi_butir_ceklis?.forEach((b: any) => {
-                          if (b.id === key) namaButirItem = b.nama_butir;
-                        });
-                      });
-                      return (
-                        <div key={i} className="flex items-center gap-2 p-3 bg-rose-50/50 border border-rose-100 rounded-xl text-xs font-medium text-rose-900">
-                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
-                          <span className="truncate">{namaButirItem}</span>
-                        </div>
-                      );
-                    })
-                ) : (
-                  <p className="text-xs text-slate-400 italic py-2 col-span-2">Tidak ada indikator bermasalah yang dicentang (Semua sesuai standar / bersih).</p>
-                )}
-              </div>
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">RINCIAN MASALAH / BELUM TERCAPAI</h4>
+                      <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100">
+                        {daftarMasalah.length} Temuan
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 max-h-40 overflow-y-auto">
+                      {daftarMasalah.length > 0 ? (
+                        daftarMasalah.map((item, i) => (
+                          <div key={i} className="flex flex-col justify-center p-3 bg-rose-50/50 border border-rose-100 rounded-xl text-xs font-medium text-rose-900">
+                            <div className="flex items-center gap-2">
+                               <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                               <span className="truncate font-bold">{item.nama}</span>
+                            </div>
+                            <span className="text-[10px] text-rose-500 ml-4 font-normal tracking-wide">{item.label}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-slate-400 italic py-2 col-span-2">Semua indikator sesuai standar (100% Tercapai / Bersih).</p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div className="space-y-1.5">
@@ -874,11 +916,11 @@ export default function DivisiTataUsahaView({ showNotification }: any) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
               {[
                 { key: 'show_petugas', defaultLabel: 'Petugas (PJ)', labelKey: 'label_petugas', typeKey: 'type_petugas', optsKey: 'options_petugas' },
-                { key: 'show_guru', defaultLabel: 'Pegawai / Target', labelKey: 'label_guru', typeKey: 'type_guru', optsKey: 'options_guru' },
-                { key: 'show_mapel', defaultLabel: 'Layanan / Administrasi', labelKey: 'label_mapel', typeKey: 'type_mapel', optsKey: 'options_mapel' },
-                { key: 'show_kelas', defaultLabel: 'Bagian / Unit', labelKey: 'label_kelas', typeKey: 'type_kelas', optsKey: 'options_kelas' },
-                { key: 'show_jam', defaultLabel: 'Waktu Pelayanan', labelKey: 'label_jam', typeKey: 'type_jam', optsKey: 'options_jam' },
-                { key: 'show_santri_absen', defaultLabel: 'Keterangan Dokumen', labelKey: 'label_santri_absen', typeKey: 'type_santri_absen', optsKey: 'options_santri_absen' },
+                { key: 'show_guru', defaultLabel: 'Guru / Pengajar', labelKey: 'label_guru', typeKey: 'type_guru', optsKey: 'options_guru' },
+                { key: 'show_mapel', defaultLabel: 'Mata Pelajaran', labelKey: 'label_mapel', typeKey: 'type_mapel', optsKey: 'options_mapel' },
+                { key: 'show_kelas', defaultLabel: 'Kelas', labelKey: 'label_kelas', typeKey: 'type_kelas', optsKey: 'options_kelas' },
+                { key: 'show_jam', defaultLabel: 'Jam Ke-', labelKey: 'label_jam', typeKey: 'type_jam', optsKey: 'options_jam' },
+                { key: 'show_santri_absen', defaultLabel: 'Keterangan / Absen', labelKey: 'label_santri_absen', typeKey: 'type_santri_absen', optsKey: 'options_santri_absen' },
               ].map((item) => {
                 const currentLabel = formConfig[item.labelKey] || item.defaultLabel;
                 const isChecked = formConfig[item.key];
