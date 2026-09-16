@@ -459,7 +459,7 @@ const calculateCurrentScore = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex bg-slate-100 p-1 rounded-xl">
-            {['Harian', 'Mingguan', 'Bulanan', 'Semesteran' 'Tahunan'].map(tf => (
+            {['Harian', 'Mingguan', 'Bulanan', 'Semesteran', 'Tahunan'].map(tf => (
               <button
                 key={tf}
                 onClick={() => { setTimeframe(tf); setSelectedProgramId(''); }}
