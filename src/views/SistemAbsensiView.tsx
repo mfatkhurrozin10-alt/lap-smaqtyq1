@@ -12,7 +12,7 @@ export default function SistemAbsensiView({ showNotification }: any) {
   
   const [siswaList, setSiswaList] = useState<any[]>([]);
   const [kehadiranList, setKehadiranList] = useState<any[]>([]);
-  const [guruList, setGuruList] = useState<any[]>([]); // State untuk data guru
+  const [guruList, setGuruList] = useState<any[]>([]);
   const [fetchLoading, setFetchLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -70,10 +70,10 @@ export default function SistemAbsensiView({ showNotification }: any) {
 
   const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => s.kelas?.trim()).filter(Boolean))).sort(), [siswaList]);
 
-  // Helper untuk mendapatkan Nama Wali Kelas berdasarkan Nama Kelas
+  // Helper untuk mendapatkan Nama Wali Kelas berdasarkan Nama Kelas dan role 'wali_kelas'
   const getWaliKelas = useCallback((kelasName: string) => {
     const found = guruList.find(g => {
-      const roleMatch = (g.role || '').toLowerCase().includes('wali kelas');
+      const roleMatch = (g.role || '').trim().toLowerCase() === 'wali_kelas';
       const binaanMatch = (g.kelas_binaan || '').trim().toLowerCase() === kelasName.trim().toLowerCase();
       return roleMatch && binaanMatch;
     });
