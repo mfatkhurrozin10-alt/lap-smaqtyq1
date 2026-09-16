@@ -3,12 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function DivisiTataUsahaView({ 
-  showNotification, 
-  initialTab = 'form', 
-  initialTimeframe = 'Harian', 
-  initialProgramId = '' 
-}: any) {
+export default function DivisiTataUsahaView({ showNotification }: any) {
   const [loading, setLoading] = useState(true);
   const [divisiData, setDivisiData] = useState<any>({
     nama_divisi: 'Tata Usaha',
@@ -16,10 +11,10 @@ export default function DivisiTataUsahaView({
   });
   
   const [programList, setProgramList] = useState<any[]>([]);
-  const [selectedProgramId, setSelectedProgramId] = useState<string>(initialProgramId);
-  const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>(initialTab);
+  const [selectedProgramId, setSelectedProgramId] = useState<string>('');
+  const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>('form');
   
-  const [timeframe, setTimeframe] = useState(initialTimeframe);
+  const [timeframe, setTimeframe] = useState('Harian');
 
   const [formInput, setFormInput] = useState({
     petugas_pj: '',
@@ -104,16 +99,9 @@ export default function DivisiTataUsahaView({
         const { data: prog } = await supabase.from('program_kegiatan').select('*, indikator_iku(kode_iku, judul_iku)').eq('divisi_id', divisiObj.id);
         if (prog && prog.length > 0) {
           setProgramList(prog);
-          if (!selectedProgramId) {
-            const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
-            const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
-            setSelectedProgramId(targetProg.id);
-          } else {
-            const currentSelected = prog.find((p: any) => p.id === selectedProgramId);
-            if (currentSelected && currentSelected.timeframe) {
-              setTimeframe(currentSelected.timeframe);
-            }
-          }
+          const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
+          const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
+          setSelectedProgramId(targetProg.id);
         }
       }
     } catch (err) {
@@ -153,22 +141,12 @@ export default function DivisiTataUsahaView({
   const calculateCurrentScore = () => {
     let totalButir = 0;
     let temuanAktif = 0;
-    
     kategoriList.forEach(kat => {
-      const isPositif = kat.tipe_kategori?.toLowerCase().includes('positif');
-      
       kat.divisi_butir_ceklis?.forEach((butir: any) => {
         totalButir++;
-        const isChecked = !!checkedItems[butir.id];
-        
-        if (isPositif) {
-          if (!isChecked) temuanAktif++;
-        } else {
-          if (isChecked) temuanAktif++;
-        }
+        if (checkedItems[butir.id]) temuanAktif++;
       });
     });
-    
     const skorPersen = totalButir > 0 ? Number(((1 - (temuanAktif / totalButir)) * 100).toFixed(1)) : 100;
     const skala = Number((skorPersen / 33.3).toFixed(2));
     return { skorPersen, skala };
@@ -455,7 +433,7 @@ export default function DivisiTataUsahaView({
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex bg-slate-100 p-1 rounded-xl">
-            {['Harian', 'Mingguan', 'Bulanan', 'Semesteran', 'Tahunan'].map(tf => (
+            {['Harian', 'Mingguan', 'Bulanan', 'Tahunan'].map(tf => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
@@ -803,50 +781,35 @@ export default function DivisiTataUsahaView({
             </div>
 
             <div className="space-y-2">
-              {(() => {
-                let daftarMasalah: any[] = [];
-                if (selectedDetailLog.detail_ceklis) {
-                  kategoriList.forEach((kat: any) => {
-                    const isPositif = kat.tipe_kategori?.toLowerCase().includes('positif');
-                    kat.divisi_butir_ceklis?.forEach((b: any) => {
-                      const isChecked = !!selectedDetailLog.detail_ceklis[b.id];
-                      
-                      if (isPositif && !isChecked) {
-                        daftarMasalah.push({ nama: b.nama_butir, label: 'Belum Tercapai' });
-                      } else if (!isPositif && isChecked) {
-                        daftarMasalah.push({ nama: b.nama_butir, label: 'Temuan Masalah' });
-                      }
-                    });
-                  });
-                }
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">RINCIAN INDIKATOR MASALAH / TEMUAN DICENTANG</h4>
+                <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100">
+                  {selectedDetailLog.detail_ceklis ? Object.values(selectedDetailLog.detail_ceklis).filter(Boolean).length : 0} Temuan
+                </span>
+              </div>
 
-                return (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">RINCIAN MASALAH / BELUM TERCAPAI</h4>
-                      <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100">
-                        {daftarMasalah.length} Temuan
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 max-h-40 overflow-y-auto">
-                      {daftarMasalah.length > 0 ? (
-                        daftarMasalah.map((item, i) => (
-                          <div key={i} className="flex flex-col justify-center p-3 bg-rose-50/50 border border-rose-100 rounded-xl text-xs font-medium text-rose-900">
-                            <div className="flex items-center gap-2">
-                               <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
-                               <span className="truncate font-bold">{item.nama}</span>
-                            </div>
-                            <span className="text-[10px] text-rose-500 ml-4 font-normal tracking-wide">{item.label}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-xs text-slate-400 italic py-2 col-span-2">Semua indikator sesuai standar (100% Tercapai / Bersih).</p>
-                      )}
-                    </div>
-                  </>
-                );
-              })()}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 max-h-40 overflow-y-auto">
+                {selectedDetailLog.detail_ceklis && Object.keys(selectedDetailLog.detail_ceklis).length > 0 ? (
+                  Object.entries(selectedDetailLog.detail_ceklis)
+                    .filter(([_, val]) => val === true)
+                    .map(([key], i) => {
+                      let namaButirItem = key;
+                      kategoriList.forEach(kat => {
+                        kat.divisi_butir_ceklis?.forEach((b: any) => {
+                          if (b.id === key) namaButirItem = b.nama_butir;
+                        });
+                      });
+                      return (
+                        <div key={i} className="flex items-center gap-2 p-3 bg-rose-50/50 border border-rose-100 rounded-xl text-xs font-medium text-rose-900">
+                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                          <span className="truncate">{namaButirItem}</span>
+                        </div>
+                      );
+                    })
+                ) : (
+                  <p className="text-xs text-slate-400 italic py-2 col-span-2">Tidak ada indikator bermasalah yang dicentang (Semua sesuai standar / bersih).</p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-1.5">
