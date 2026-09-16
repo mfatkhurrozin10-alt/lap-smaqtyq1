@@ -6,7 +6,8 @@ import { Icons } from '../Icons';
 export default function SistemAbsensiView({ showNotification }: any) {
   const [activeTab, setActiveTab] = useState<'rekap_harian' | 'detail' | 'rekap_bulanan'>('rekap_harian');
 
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  // Tanggal otomatis diset ke hari ini secara dinamis
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [selectedClass, setSelectedClass] = useState<string>('');
   
@@ -30,7 +31,6 @@ export default function SistemAbsensiView({ showNotification }: any) {
       }
       setSiswaList(allSiswa);
 
-      // Ambil data guru untuk informasi wali kelas
       let allGuru: any[] = [];
       let startGuru = 0;
       let hasMoreGuru = true;
@@ -70,7 +70,6 @@ export default function SistemAbsensiView({ showNotification }: any) {
 
   const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => s.kelas?.trim()).filter(Boolean))).sort(), [siswaList]);
 
-  // Helper untuk mendapatkan Nama Wali Kelas berdasarkan Nama Kelas dan role 'wali_kelas'
   const getWaliKelas = useCallback((kelasName: string) => {
     const found = guruList.find(g => {
       const roleMatch = (g.role || '').trim().toLowerCase() === 'wali_kelas';
@@ -236,7 +235,7 @@ export default function SistemAbsensiView({ showNotification }: any) {
                             <td className="px-5 py-3">
                               <div className="font-bold text-slate-800">{row.kelas}</div>
                               <div className="text-[11px] text-slate-400 font-normal">
-                                Wali: {waliKelasName || <span className="italic text-slate-300">Belum diset</span>}
+                                {waliKelasName || <span className="italic text-slate-300">Belum diset</span>}
                               </div>
                             </td>
                             <td className="px-5 py-3 text-center font-bold text-slate-600">{row.total}</td>
@@ -276,7 +275,7 @@ export default function SistemAbsensiView({ showNotification }: any) {
                   <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none">
                     {availableClasses.map(cls => (
                       <option key={cls} value={cls}>
-                        {cls} {getWaliKelas(cls) ? `(Wali: ${getWaliKelas(cls)})` : ''}
+                        {cls} {getWaliKelas(cls) ? `- ${getWaliKelas(cls)}` : ''}
                       </option>
                     ))}
                   </select>
@@ -357,7 +356,7 @@ export default function SistemAbsensiView({ showNotification }: any) {
                           <td className="px-6 py-3.5">
                             <div className="font-extrabold text-slate-800">{row.kelas}</div>
                             <div className="text-[11px] text-slate-400 font-normal">
-                              Wali: {waliKelasName || <span className="italic text-slate-300">Belum diset</span>}
+                              {waliKelasName || <span className="italic text-slate-300">Belum diset</span>}
                             </div>
                           </td>
                           <td className="px-6 py-3.5 text-center font-bold text-emerald-600">{row.hadir}</td>
