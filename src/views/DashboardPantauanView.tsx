@@ -8,7 +8,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   
   // State Statistik Atas
-  const [absensiStats, setAbsensiStats] = useState({ sakit: 0, izin: 0, alfa: 0, totalAbsen: 0 });
+  const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
   const [legerStats, setLegerStats] = useState({ terisi: 0, totalGuru: 23 });
 
@@ -18,47 +18,35 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // 1. SUMBER DATA ABSENSI: Mengambil dari tabel 'kehadiran' (sesuai SistemAbsensiView)
-      const { data: hadirList, error: hadirErr } = await supabase
-        .from('kehadiran')
-        .select('*')
-        .eq('tanggal', selectedDate);
+      // 1. Ambil Data Absensi Hari Ini
+      const { data: siswaList } = await supabase.from('siswa').select('id, nisn, nis, nama, kelas');
+      const { data: hadirList } = await supabase.from('kehadiran').select('*').eq('tanggal', selectedDate);
       
-      if (hadirErr) throw hadirErr;
+      const totalSiswa = siswaList?.length || 0;
+      let hadir = 0, sakit = 0, izin = 0, alfa = 0;
 
-      let sakit = 0, izin = 0, alfa = 0;
       (hadirList || []).forEach((h: any) => {
         const ket = (h.keterangan || '').toLowerCase();
-        if (ket.includes('sakit')) sakit++;
+        if (ket.includes('hadir')) hadir++;
+        else if (ket.includes('sakit')) sakit++;
         else if (ket.includes('izin')) izin++;
-        else if (ket.includes('hadir')) {
-          // Hadir diabaikan dari hitungan siswa absen
-        } else {
-          alfa++; // Default jika selain hadir/sakit/izin dianggap alpha/mangkir
-        }
+        else alfa++;
       });
-      setAbsensiStats({ sakit, izin, alfa, totalAbsen: sakit + izin + alfa });
+      setAbsensiStats({ hadir, sakit, izin, alfa, totalSantri: totalSiswa });
 
-      // 2. SUMBER DATA GURU MENGISI JURNAL: Mengambil dari divisi_log_pengawasan (jurnal harian divisi)
-      const { data: logs, error: logErr } = await supabase.from('divisi_log_pengawasan').select('*');
-      if (logErr) throw logErr;
-
+      // 2. Ambil Data Log Pengawasan Harian Hari Ini (untuk Jurnal / Kegiatan Harian)
+      const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const todayLogs = (logs || []).filter((l: any) => l.waktu_input && l.waktu_input.startsWith(selectedDate));
+      
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 3. SUMBER DATA GURU MENGISILEGER NILAI: Mengambil dari tabel 'nilai' (sesuai KelolaNilaiView)
-      const { data: nilaiList, error: nilaiErr } = await supabase.from('nilai').select('guru_id, created_at, tanggal');
-      if (nilaiErr) throw nilaiErr;
-
-      const todayNilai = (nilaiList || []).filter((n: any) => {
-        const tgl = n.tanggal || (n.created_at ? n.created_at.slice(0, 10) : '');
-        return tgl === selectedDate;
-      });
+      const { data: nilaiList } = await supabase.from('nilai').select('*');
+      const todayNilai = (nilaiList || []).filter((n: any) => (n.created_at || '').startsWith(selectedDate) || (n.tanggal || '').startsWith(selectedDate));
       const uniqueGuruLeger = new Set(todayNilai.map((n: any) => n.guru_id).filter(Boolean));
       setLegerStats({ terisi: uniqueGuruLeger.size, totalGuru: 23 });
 
-      // 4. Master Program Kegiatan Harian dari Semua Divisi untuk Tabel Pantauan
+      // 3. Ambil Master Program Kegiatan Harian dari Semua Divisi untuk Tabel Pantauan
       const { data: progList } = await supabase.from('program_kegiatan').select('*, divisi(id, nama_divisi)');
       const harianPrograms = (progList || []).filter((p: any) => p.timeframe?.toLowerCase() === 'harian');
 
@@ -137,7 +125,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
             <div>
               <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Siswa Absen (Hari Ini)</p>
               <h3 className="text-3xl font-black text-rose-600 mt-1 flex items-baseline gap-2">
-                {absensiStats.totalAbsen} 
+                {absensiStats.sakit + absensiStats.izin + absensiStats.alfa} 
                 <span className="text-xs font-bold text-slate-500">Santri</span>
               </h3>
             </div>
