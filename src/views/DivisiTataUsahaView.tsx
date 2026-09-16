@@ -691,12 +691,13 @@ const fetchProgramDetail = async () => {
                 <tr>
                   <th className="px-6 py-4">No</th>
                   <th className="px-6 py-4">Waktu</th>
-                  {formConfig.show_petugas && <th className="px-6 py-4">{formConfig.label_petugas}</th>}
-                  {formConfig.show_guru && <th className="px-6 py-4">{formConfig.label_guru}</th>}
-                  {formConfig.show_mapel && <th className="px-6 py-4">{formConfig.label_mapel}</th>}
-                  {formConfig.show_kelas && <th className="px-6 py-4">{formConfig.label_kelas}</th>}
-                  {formConfig.show_jam && <th className="px-6 py-4">{formConfig.label_jam}</th>}
-                  {formConfig.show_santri_absen && <th className="px-6 py-4">{formConfig.label_santri_absen}</th>}
+                  {/* Header dinamis berdasarkan label dan status show di formConfig */}
+                  {formConfig.show_petugas && <th className="px-6 py-4">{formConfig.label_petugas || 'Petugas (PJ)'}</th>}
+                  {formConfig.show_guru && <th className="px-6 py-4">{formConfig.label_guru || 'Guru / Pengajar'}</th>}
+                  {formConfig.show_mapel && <th className="px-6 py-4">{formConfig.label_mapel || 'Mata Pelajaran'}</th>}
+                  {formConfig.show_kelas && <th className="px-6 py-4">{formConfig.label_kelas || 'Kelas'}</th>}
+                  {formConfig.show_jam && <th className="px-6 py-4">{formConfig.label_jam || 'Jam Ke-'}</th>}
+                  {formConfig.show_santri_absen && <th className="px-6 py-4">{formConfig.label_santri_absen || 'Keterangan / Absen'}</th>}
                   <th className="px-6 py-4">Skor</th>
                   <th className="px-6 py-4">Catatan</th>
                   <th className="px-6 py-4 text-center">Aksi</th>
@@ -716,12 +717,15 @@ const fetchProgramDetail = async () => {
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 font-mono text-slate-400">{absoluteIndex}</td>
                         <td className="px-6 py-4 text-slate-600 text-xs">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
+                        
+                        {/* Data baris yang ikut tersembunyi/tampil sesuai pengaturan formConfig */}
                         {formConfig.show_petugas && <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj || '-'}</td>}
                         {formConfig.show_guru && <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target || '-'}</td>}
                         {formConfig.show_mapel && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '-'}</td>}
                         {formConfig.show_kelas && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '-'}</td>}
                         {formConfig.show_jam && <td className="px-6 py-4 text-slate-600">{item.jam_pembelajaran || '-'}</td>}
                         {formConfig.show_santri_absen && <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>}
+                        
                         <td className={`px-6 py-4 font-black ${getScoreTextColor(skorVal)}`}>
                           {skorVal}%
                         </td>
