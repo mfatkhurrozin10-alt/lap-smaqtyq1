@@ -3,11 +3,20 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Icons } from '../Icons';
 
+// Helper untuk mendapatkan tanggal lokal format YYYY-MM-DD hari ini secara akurat
+const getLocalDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function SistemAbsensiView({ showNotification }: any) {
   const [activeTab, setActiveTab] = useState<'rekap_harian' | 'detail' | 'rekap_bulanan'>('rekap_harian');
 
-  // Tanggal otomatis diset ke hari ini secara dinamis
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // Tanggal otomatis menggunakan zona waktu lokal perangkat
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [selectedClass, setSelectedClass] = useState<string>('');
   
@@ -15,6 +24,11 @@ export default function SistemAbsensiView({ showNotification }: any) {
   const [kehadiranList, setKehadiranList] = useState<any[]>([]);
   const [guruList, setGuruList] = useState<any[]>([]);
   const [fetchLoading, setFetchLoading] = useState(true);
+
+  // Auto-update tanggal ke hari ini setiap kali komponen dibuka/dimuat ulang
+  useEffect(() => {
+    setSelectedDate(getLocalDateString());
+  }, []);
 
   const fetchData = useCallback(async () => {
     setFetchLoading(true);
@@ -175,7 +189,7 @@ export default function SistemAbsensiView({ showNotification }: any) {
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tanggal Presensi</label>
                   <div className="flex items-center gap-3">
                     <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500" />
-                    <button onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold rounded-xl transition-colors">Hari Ini</button>
+                    <button onClick={() => setSelectedDate(getLocalDateString())} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold rounded-xl transition-colors">Hari Ini</button>
                   </div>
                 </div>
               </div>
