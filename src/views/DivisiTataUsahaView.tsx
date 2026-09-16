@@ -68,7 +68,6 @@ export default function DivisiTataUsahaView({
     options_kelas: [],
     options_jam: [],
     options_santri_absen: [],
-    // Tambahan konfigurasi tipe target realisasi ('percentage' atau 'count')
     target_realisasi_type: 'percentage' 
   });
 
@@ -133,6 +132,15 @@ export default function DivisiTataUsahaView({
   const fetchProgramDetail = async () => {
     if (!selectedProgramId) return;
     try {
+      // Ambil data program kegiatan untuk membaca target_realisasi_type
+      const { data: progObj } = await supabase.from('program_kegiatan').select('*').eq('id', selectedProgramId).single();
+      if (progObj) {
+        setFormConfig((prev: any) => ({ 
+          ...prev, 
+          target_realisasi_type: progObj.target_realisasi_type || 'percentage' 
+        }));
+      }
+
       const { data: cfgList } = await supabase.from('divisi_form_config').select('*').eq('program_id', selectedProgramId);
       if (cfgList && cfgList.length > 0) {
         setFormConfig((prev: any) => ({ ...prev, ...cfgList[0] }));
@@ -315,21 +323,24 @@ export default function DivisiTataUsahaView({
     }
   };
 
-  // Fungsi untuk menyimpan perubahan Tipe Target Realisasi ke State & Supabase
+  // Fungsi simpan target_realisasi_type langsung ke tabel program_kegiatan
   const handleUpdateTargetRealisasiType = async (newType: string) => {
     const updated = { ...formConfig, target_realisasi_type: newType };
     setFormConfig(updated);
     if (!selectedProgramId) return;
+
     try {
-      const { data: existing } = await supabase.from('divisi_form_config').select('id').eq('program_id', selectedProgramId);
-      if (existing && existing.length > 0) {
-        await supabase.from('divisi_form_config').update({ target_realisasi_type: newType }).eq('program_id', selectedProgramId);
-      } else {
-        await supabase.from('divisi_form_config').insert([{ program_id: selectedProgramId, target_realisasi_type: newType }]);
-      }
-      if (showNotification) showNotification('Bentuk target realisasi berhasil diperbarui!', 'success');
+      const { error } = await supabase
+        .from('program_kegiatan')
+        .update({ target_realisasi_type: newType })
+        .eq('id', selectedProgramId);
+
+      if (error) throw error;
+      if (showNotification) showNotification('Bentuk target realisasi berhasil disimpan permanen!', 'success');
+      fetchData();
     } catch (err: any) {
-      if (showNotification) showNotification(err.message, 'error');
+      console.error("Gagal menyimpan:", err);
+      if (showNotification) showNotification(`Gagal menyimpan: ${err.message}`, 'error');
     }
   };
 
@@ -893,7 +904,6 @@ export default function DivisiTataUsahaView({
       {activeSubTab === 'realisasi' && (
         <div className="space-y-6">
           {formConfig.target_realisasi_type === 'count' ? (
-            // --- TAMPILAN JIKA PILIHANNYA COUNT (HITUNGAN FREKUENSI) ---
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -911,7 +921,6 @@ export default function DivisiTataUsahaView({
                 </div>
               </div>
 
-              {/* Tabel Rekapitulasi Count Per Bulan */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
                 <h3 className="font-bold text-slate-800">Rekapitulasi Hitungan (Count) Pengisian Form Per Bulan</h3>
                 <div className="overflow-x-auto">
@@ -965,7 +974,6 @@ export default function DivisiTataUsahaView({
               </div>
             </div>
           ) : (
-            // --- TAMPILAN JIKA PILIHANNYA PERSENTASE (%) ---
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -989,7 +997,6 @@ export default function DivisiTataUsahaView({
                 </div>
               </div>
 
-              {/* Tabel Rekapitulasi Persentase Per Bulan */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
                 <h3 className="font-bold text-slate-800">Rekapitulasi Persentase Skor Per Bulan</h3>
                 <div className="overflow-x-auto">
@@ -1049,7 +1056,6 @@ export default function DivisiTataUsahaView({
 
       {activeSubTab === 'customize' && (
         <div className="space-y-6">
-          {/* PENGATURAN BENTUK TARGET REALISASI */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <BarChart2 size={18} className="text-blue-600" /> PENGATURAN BENTUK TARGET REALISASI
