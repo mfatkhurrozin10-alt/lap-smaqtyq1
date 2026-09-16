@@ -12,15 +12,13 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
   const [selectedMonth, setSelectedMonth] = useState(currentYearMonth);
   const [rekapRows, setRekapRows] = useState<any[]>([]);
 
-  // State untuk Modal Catatan Evaluasi (Pop-up)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProgram, setActiveProgram] = useState<any>(null);
   const [modalCatatanText, setModalCatatanText] = useState('');
 
-  // Helper Warna Realisasi (Hanya untuk persentase)
   const getScoreTextColor = (scoreStr: string) => {
     if (scoreStr === '-') return 'text-slate-400';
-    if (scoreStr.includes('Kali')) return 'text-blue-600'; // Warna khusus untuk count
+    if (scoreStr.includes('Kali')) return 'text-blue-600 font-bold';
     const score = parseFloat(scoreStr) || 0;
     if (score > 66) return 'text-emerald-600';
     if (score > 33) return 'text-amber-600';
@@ -48,14 +46,12 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
-      // 1. Ambil master Indikator IKU
       const { data: ikuList } = await supabase.from('indikator_iku').select('*');
       const ikuMap = new Map();
       (ikuList || []).forEach((item: any) => {
         ikuMap.set(item.id, item);
       });
 
-      // 2. Ambil program kegiatan berdasarkan divisi
       const { data: progList, error: progErr } = await supabase
         .from('program_kegiatan')
         .select('*')
@@ -63,18 +59,9 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
       if (progErr) throw progErr;
 
-      // 3. Ambil konfigurasi form (untuk mendeteksi target_realisasi_type)
-      const { data: configList } = await supabase.from('divisi_form_config').select('*');
-      const configMap = new Map();
-      (configList || []).forEach((cfg: any) => {
-        configMap.set(cfg.program_id, cfg);
-      });
-
-      // 4. Ambil log pengawasan
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const allLogs = logs || [];
 
-      // 5. Ambil data nilai terpisah (Ulangan Harian, ASTS, dll.)
       const { data: nilaiList } = await supabase.from('nilai').select('*');
       const allNilai = nilaiList || [];
 
@@ -83,26 +70,23 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
       (progList || []).forEach((prog: any) => {
         const ikuId = prog.iku_id;
         const matchedIku = ikuMap.get(ikuId);
-        const progConfig = configMap.get(prog.id) || {};
-        const targetType = progConfig.target_realisasi_type || 'percentage';
+        
+        // Membaca tipe target realisasi langsung dari tabel program_kegiatan
+        const targetType = prog.target_realisasi_type ? String(prog.target_realisasi_type).trim().toLowerCase() : 'percentage';
 
-        // Filter log sesuai bulan
         const pLogs = allLogs.filter((l: any) => l.program_id === prog.id);
         const filteredLogs = pLogs.filter((l: any) => {
           if (!selectedMonth) return true;
           return l.waktu_input && l.waktu_input.startsWith(selectedMonth);
         });
 
-        // SUMBER REALISASI DINAMIS BERDASARKAN TIPE TARGET (PERCENTAGE / COUNT)
         let calculatedRealisasi = '-';
         const progNameLower = prog.nama_program?.toLowerCase() || '';
 
         if (targetType === 'count') {
-          // Jika tipenya COUNT, hitung jumlah baris log yang terinput pada bulan tersebut
           const totalCount = filteredLogs.length;
           calculatedRealisasi = `${totalCount} Kali`;
         } else {
-          // Jika tipenya PERCENTAGE, hitung rata-rata skor persentase
           if (progNameLower.includes('asts') || progNameLower.includes('pts')) {
             const astsNilai = allNilai.filter((n: any) => (n.kategori === 'ASTS' || n.jenis === 'ASTS') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
             if (astsNilai.length > 0) {
@@ -138,10 +122,8 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         });
       });
 
-      // 6. Urutkan berdasarkan IKU
       rawRows.sort((a, b) => a.kode_iku.localeCompare(b.kode_iku));
 
-      // 7. Hitung rowspan untuk NO dan INDIKATOR
       let finalRows: any[] = [];
       let groupCounter = 1;
       let i = 0;
@@ -178,7 +160,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
     fetchRekapData();
   }, [selectedDivisiId, selectedMonth]);
 
-  // Fungsi Membuka Modal Pop-up Catatan Evaluasi
   const handleOpenModal = (prog: any) => {
     setActiveProgram(prog);
     const defaultLogText = prog.logs.length > 0 
@@ -188,7 +169,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
     setIsModalOpen(true);
   };
 
-  // Tombol "Tarik dari Log" di dalam modal
   const handlePullFromLog = () => {
     if (!activeProgram || !activeProgram.logs) return;
     const pulledText = activeProgram.logs.length > 0 
@@ -198,7 +178,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
     if (showNotification) showNotification('Berhasil menarik catatan dari log pengawasan!', 'success');
   };
 
-  // Simpan Catatan secara permanen ke Database Supabase
   const handleSaveModalNote = async () => {
     if (!activeProgram) return;
     try {
@@ -233,8 +212,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800 relative">
-      
-      {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-600 p-6 sm:p-8 rounded-3xl shadow-lg text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/25 backdrop-blur-md rounded-full text-xs font-bold tracking-wide">
@@ -277,7 +254,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         </div>
       </div>
 
-      {/* TABEL REKAPITULASI IKU */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm border-collapse">
@@ -307,7 +283,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
-                      
                       {showMergedCell && (
                         <td rowSpan={row.rowSpan} className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100 bg-white align-middle">
                           {row.no}
@@ -363,7 +338,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                         {row.waktu}
                       </td>
 
-                      {/* CATATAN */}
                       <td className="px-6 py-5 border-r border-slate-100">
                         {row.catatan_evaluasi ? (
                           <div className="text-xs text-slate-700 whitespace-pre-line bg-slate-50 p-2.5 rounded-xl border border-slate-100">
@@ -374,7 +348,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                         )}
                       </td>
 
-                      {/* AKSI */}
                       <td className="px-5 py-5 text-center">
                         <button 
                           onClick={() => handleOpenModal(row)}
@@ -384,7 +357,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                           <Edit3 size={15} />
                         </button>
                       </td>
-
                     </tr>
                   );
                 })
@@ -394,12 +366,9 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         </div>
       </div>
 
-      {/* POP-UP MODAL CATATAN EVALUASI */}
       {isModalOpen && activeProgram && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            
-            {/* Modal Header */}
             <div className="bg-gradient-to-r from-purple-700 to-indigo-600 p-6 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-black">Catatan Evaluasi Kegiatan</h3>
@@ -413,7 +382,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 <span className="text-xs font-bold text-slate-700">Sumber Isi Catatan:</span>
@@ -450,7 +418,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
               <button 
                 onClick={() => setIsModalOpen(false)}
@@ -465,11 +432,9 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                 Simpan Catatan
               </button>
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }
