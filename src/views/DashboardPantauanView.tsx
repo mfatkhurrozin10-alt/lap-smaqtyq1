@@ -15,38 +15,69 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
   const [pantauanRows, setPantauanRows] = useState<any[]>([]);
 
-  const fetchDashboardData = async () => {
+    const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // 1. Ambil Data Absensi Hari Ini
-      const { data: siswaList } = await supabase.from('siswa').select('id, nisn, nis, nama, kelas');
-      const { data: hadirList } = await supabase.from('kehadiran').select('*').eq('tanggal', selectedDate);
-      
-      const totalSiswa = siswaList?.length || 0;
-      let hadir = 0, sakit = 0, izin = 0, alfa = 0;
+      // 1. Ambil Data Siswa (Mengikuti pola SisteAbsensiView)
+      let allSiswa: any[] = [];
+      let startSiswa = 0;
+      let hasMoreSiswa = true;
+      while (hasMoreSiswa) {
+        const { data, error } = await supabase.from('siswa').select('*').order('kelas').order('nama').range(startSiswa, startSiswa + 999);
+        if (error) throw error;
+        allSiswa = [...allSiswa, ...(data || [])];
+        if ((data || []).length < 1000) hasMoreSiswa = false;
+        else startSiswa += 1000;
+      }
 
-      (hadirList || []).forEach((h: any) => {
-        const ket = (h.keterangan || '').toLowerCase();
-        if (ket.includes('hadir')) hadir++;
-        else if (ket.includes('sakit')) sakit++;
-        else if (ket.includes('izin')) izin++;
-        else alfa++;
+      // 2. Ambil Data Kehadiran tanggal terpilih
+      const { data: hadirList, error: hadirErr } = await supabase.from('kehadiran').select('*').eq('tanggal', selectedDate);
+      if (hadirErr) throw hadirErr;
+      const todayRecords = hadirList || [];
+
+      // 3. Hitung Statistik Absensi Menggunakan Logika Persis SistemAbsensiView
+      let sakitCount = 0;
+      let izinCount = 0;
+      let alfaCount = 0;
+
+      allSiswa.forEach((s: any) => {
+        const sNisn = String(s.nisn || s.nis || '').trim();
+        const record = todayRecords.find((r: any) => String(r.nisn || '').trim() === sNisn);
+        if (record) {
+          const ket = (record.keterangan || '').toLowerCase();
+          if (ket.includes('sakit')) {
+            sakitCount++;
+          } else if (ket.includes('izin')) {
+            izinCount++;
+          } else if (!ket.includes('hadir')) {
+            // Jika bukan hadir dan bukan sakit/izin, dihitung alpha/tidak masuk
+            alfaCount++;
+          }
+        }
       });
-      setAbsensiStats({ hadir, sakit, izin, alfa, totalSantri: totalSiswa });
 
-      // 2. Ambil Data Log Pengawasan Harian Hari Ini (untuk Jurnal / Kegiatan Harian)
+      setAbsensiStats({ 
+        hadir: 0, // Tidak dipakai di card, tapi disiapkan
+        sakit: sakitCount, 
+        izin: izinCount, 
+        alfa: alfaCount, 
+        totalSantri: allSiswa.length 
+      });
+
+      // 4. Ambil Data Log Pengawasan Harian Hari Ini (untuk Jurnal / Kegiatan Harian)
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const todayLogs = (logs || []).filter((l: any) => l.waktu_input && l.waktu_input.startsWith(selectedDate));
       
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
+      // 5. Ambil Data Leger Nilai
       const { data: nilaiList } = await supabase.from('nilai').select('*');
       const todayNilai = (nilaiList || []).filter((n: any) => (n.created_at || '').startsWith(selectedDate) || (n.tanggal || '').startsWith(selectedDate));
       const uniqueGuruLeger = new Set(todayNilai.map((n: any) => n.guru_id).filter(Boolean));
       setLegerStats({ terisi: uniqueGuruLeger.size, totalGuru: 23 });
 
-      // 3. Ambil Master Program Kegiatan Harian dari Semua Divisi untuk Tabel Pantauan
+      // 6. Ambil Master Program Kegiatan Harian dari Semua Divisi untuk Tabel Pantauan
       const { data: progList } = await supabase.from('program_kegiatan').select('*, divisi(id, nama_divisi)');
       const harianPrograms = (progList || []).filter((p: any) => p.timeframe?.toLowerCase() === 'harian');
 
