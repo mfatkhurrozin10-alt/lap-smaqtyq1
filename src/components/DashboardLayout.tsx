@@ -14,15 +14,15 @@ import {
   Archive,
   Award,
   ShieldCheck,
+  Library, // <-- Tambahkan icon Perpustakaan
   Menu,
   X
 } from 'lucide-react';
 
 export default function DashboardLayout({ activeTab, setActiveTab, children }: any) {
   const [isHovered, setIsHovered] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false); // State khusus menu mobile
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // Di desktop, lebar mengikuti hover. Di mobile, mengikuti isMobileOpen.
   const isExpanded = isHovered;
 
   const MenuItem = ({ id, icon, label }: any) => {
@@ -74,7 +74,6 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
   return (
     <div className="flex h-screen bg-[#f3f4f6] font-sans overflow-hidden relative">
       
-      {/* Backdrop / Overlay Hitam saat Sidebar Terbuka di Mobile */}
       {isMobileOpen && (
         <div 
           onClick={() => setIsMobileOpen(false)}
@@ -82,7 +81,6 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
         />
       )}
 
-      {/* Sidebar Utama */}
       <aside 
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -105,7 +103,6 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
             </div>
           </div>
 
-          {/* Tombol Close untuk Mobile */}
           <button 
             onClick={() => setIsMobileOpen(false)}
             className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white md:hidden"
@@ -135,6 +132,9 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
             <SubMenuItem id="divisi-sarpras" icon={<Archive size={18} />} label="Sarpras dan Bendahara" />
             <SubMenuItem id="divisi-bahasa" icon={<Award size={18} />} label="Bahasa & Prestasi" />
             <SubMenuItem id="divisi-tata-usaha" icon={<Briefcase size={18} />} label="Tata Usaha" />
+            
+            {/* MENU PERPUSTAKAAN DITAMBAHKAN DI BAWAH TATA USAHA */}
+            <SubMenuItem id="divisi-perpustakaan" icon={<Library size={18} />} label="Perpustakaan" />
           </div>
         </div>
 
@@ -151,11 +151,9 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 w-full">
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-3">
-            {/* Tombol Hamburger untuk Membuka Sidebar di Mobile */}
             <button 
               onClick={() => setIsMobileOpen(true)}
               className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 md:hidden transition-colors"
@@ -164,12 +162,8 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
               <Menu size={20} />
             </button>
             <span className="text-xs md:text-sm font-semibold text-slate-600">
-              {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', mouse: 'long', day: 'numeric' } as any)}
+              {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' } as any)}
             </span>
-          </div>
-
-          <div className="flex items-center gap-4">
-             {/* Tambahan elemen header kanan jika diperlukan */}
           </div>
         </header>
 

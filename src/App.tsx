@@ -19,13 +19,12 @@ import DivisiHumasView from './views/DivisiHumasView';
 import DivisiSarprasView from './views/DivisiSarprasView';
 import DivisiBahasaView from './views/DivisiBahasaView';
 import DivisiTataUsahaView from './views/DivisiTataUsahaView';
+import DivisiPerpustakaanView from './views/DivisiPerpustakaanView'; // <-- Import View Perpustakaan
 import DashboardPantauanView from './views/DashboardPantauanView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard-pantauan');
   const [notification, setNotification] = useState({ message: '', type: '' });
-  
-  // STATE BARU: Untuk menyimpan data progres nilai yang dikirim dari KelolaNilaiView
   const [sharedNilaiProgress, setSharedNilaiProgress] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   const [navParams, setNavParams] = useState<any>(null);
@@ -69,6 +68,8 @@ export default function App() {
       setActiveTab('divisi-bahasa');
     } else if (divName.includes('tata usaha') || divName.includes('tu')) {
       setActiveTab('divisi-tata-usaha');
+    } else if (divName.includes('perpustakaan') || divName.includes('perpus')) {
+      setActiveTab('divisi-perpustakaan'); // <-- Mapping navigasi perpustakaan
     } else {
       showNotification(`Menu untuk divisi "${params.namaDivisi}" belum dipetakan.`, 'error');
     }
@@ -82,7 +83,7 @@ export default function App() {
             showNotification={showNotification} 
             onNavigateToDivisi={handleNavigateToKegiatan} 
             onNavigateToNilai={() => setActiveTab('rekap-penilaian')}
-            sharedNilaiProgress={sharedNilaiProgress} // <- KIRIM DATA KE SINI
+            sharedNilaiProgress={sharedNilaiProgress} 
           />
         );
       
@@ -99,7 +100,7 @@ export default function App() {
           <KelolaNilaiView 
             user={currentUser} 
             showNotification={showNotification} 
-            onUpdateProgress={(prog: any) => setSharedNilaiProgress(prog)} // <- TANGKAP DATA DARI SINI
+            onUpdateProgress={(prog: any) => setSharedNilaiProgress(prog)} 
           />
         );
       
@@ -135,6 +136,9 @@ export default function App() {
 
       case 'divisi-tata-usaha':
         return <DivisiTataUsahaView showNotification={showNotification} {...navParams} />;
+
+      case 'divisi-perpustakaan': // <-- Render View Perpustakaan
+        return <DivisiPerpustakaanView showNotification={showNotification} {...navParams} />;
 
       default:
         return (
