@@ -11,7 +11,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
   
-  // State Khusus Progres Pengisian Nilai (Berdasarkan Bulan Ini)
+  // State Khusus Progres Pengisian Nilai (Berdasarkan Bulan dari Tanggal Terpilih)
   const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
@@ -72,17 +72,24 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. Ambil Data untuk Kartu Progres Pengisian Nilai (BERDASARKAN BULAN INI)
-      const currentMonthPrefix = selectedDate.slice(0, 7); // Format "YYYY-MM"
-      
-      const [rNilaiBulan, rGuruMapel] = await Promise.all([
-        supabase.from('nilai').select('guru_id, mapel_id, kelas, created_at, tanggal'),
+      // 5. Ambil Data untuk Kartu Progres Pengisian Nilai (BERDASARKAN BULAN DARI TANGGAL TERPILIH)
+      // Mengubah format tanggal (misal "2026-09-17") menjadi nama bulan (misal "September") agar cocok dengan kolom 'bulan' di tabel nilai
+      const dateObj = new Date(selectedDate);
+      const namaBulanList = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const targetBulanName = namaBulanList[dateObj.getMonth()];
+      const targetBulanPrefix = selectedDate.slice(0, 7); // "YYYY-MM" untuk fallback pengecekan created_at
+
+      const [rNilai, rGuruMapel] = await Promise.all([
+        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan, created_at, tanggal'),
         supabase.from('guru_mapel').select('*')
       ]);
 
-      const nilaiBulanList = (rNilaiBulan.data || []).filter((n: any) => {
+      // Filter nilai berdasarkan bulan (mengecek kolom 'bulan' atau mencocokkan string tanggal created_at)
+      const nilaiBulanList = (rNilai.data || []).filter((n: any) => {
+        const matchBulanCol = (n.bulan || '').trim().toLowerCase() === targetBulanName.toLowerCase();
         const tgl = n.created_at || n.tanggal || '';
-        return tgl.startsWith(currentMonthPrefix);
+        const matchTglPrefix = tgl.startsWith(targetBulanPrefix);
+        return matchBulanCol || matchTglPrefix;
       });
 
       const guruMapelList = rGuruMapel.data || [];
@@ -219,7 +226,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </p>
         </div>
 
-        {/* KARTU 3: PROGRES PENGISIAN NILAI (Berdasarkan Bulan Ini) */}
+        {/* KARTU 3: PROGRES PENGISIAN NILAI (Berdasarkan Bulan dari Tanggal Terpilih) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
