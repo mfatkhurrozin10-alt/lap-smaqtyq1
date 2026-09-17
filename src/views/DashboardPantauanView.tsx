@@ -1,7 +1,7 @@
 // src/views/DashboardPantauanView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { CheckCircle2, Clock, Eye, RefreshCw, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Eye, RefreshCw, AlertCircle, Award } from 'lucide-react';
 
 export default function DashboardPantauanView({ showNotification, onNavigateToDivisi }: any) {
   const [loading, setLoading] = useState(true);
@@ -10,15 +10,17 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   // State Statistik Atas
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
-  const [legerStats, setLegerStats] = useState({ terisi: 0, totalGuru: 23 });
+  
+  // State Khusus Progres Pengisian Nilai (Berdasarkan Bulan Ini)
+  const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
   const [pantauanRows, setPantauanRows] = useState<any[]>([]);
 
-    const fetchDashboardData = async () => {
+  const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // 1. Ambil Data Siswa (Mengikuti pola SisteAbsensiView)
+      // 1. Ambil Data Siswa (Mengikuti pola SistemAbsensiView)
       let allSiswa: any[] = [];
       let startSiswa = 0;
       let hasMoreSiswa = true;
@@ -50,14 +52,13 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           } else if (ket.includes('izin')) {
             izinCount++;
           } else if (!ket.includes('hadir')) {
-            // Jika bukan hadir dan bukan sakit/izin, dihitung alpha/tidak masuk
             alfaCount++;
           }
         }
       });
 
       setAbsensiStats({ 
-        hadir: 0, // Tidak dipakai di card, tapi disiapkan
+        hadir: 0, 
         sakit: sakitCount, 
         izin: izinCount, 
         alfa: alfaCount, 
@@ -71,11 +72,41 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. Ambil Data Leger Nilai
-      const { data: nilaiList } = await supabase.from('nilai').select('*');
-      const todayNilai = (nilaiList || []).filter((n: any) => (n.created_at || '').startsWith(selectedDate) || (n.tanggal || '').startsWith(selectedDate));
-      const uniqueGuruLeger = new Set(todayNilai.map((n: any) => n.guru_id).filter(Boolean));
-      setLegerStats({ terisi: uniqueGuruLeger.size, totalGuru: 23 });
+      // 5. Ambil Data untuk Kartu Progres Pengisian Nilai (BERDASARKAN BULAN INI)
+      const currentMonthPrefix = selectedDate.slice(0, 7); // Format "YYYY-MM"
+      
+      const [rNilaiBulan, rGuruMapel] = await Promise.all([
+        supabase.from('nilai').select('guru_id, mapel_id, kelas, created_at, tanggal'),
+        supabase.from('guru_mapel').select('*')
+      ]);
+
+      const nilaiBulanList = (rNilaiBulan.data || []).filter((n: any) => {
+        const tgl = n.created_at || n.tanggal || '';
+        return tgl.startsWith(currentMonthPrefix);
+      });
+
+      const guruMapelList = rGuruMapel.data || [];
+      const totalTargetNilai = guruMapelList.length;
+
+      if (totalTargetNilai > 0) {
+        const uploadedSet = new Set(
+          nilaiBulanList.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
+        );
+        let fulfilledCount = 0;
+        guruMapelList.forEach((gm: any) => {
+          const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
+          if (uploadedSet.has(key)) fulfilledCount++;
+        });
+
+        const pct = ((fulfilledCount / totalTargetNilai) * 100).toFixed(1);
+        setNilaiProgressStats({
+          persentase: pct,
+          terpenuhi: fulfilledCount,
+          totalTarget: totalTargetNilai
+        });
+      } else {
+        setNilaiProgressStats({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
+      }
 
       // 6. Ambil Master Program Kegiatan Harian dari Semua Divisi untuk Tabel Pantauan
       const { data: progList } = await supabase.from('program_kegiatan').select('*, divisi(id, nama_divisi)');
@@ -150,7 +181,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       {/* 3 KARTU STATISTIK ATAS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* KARTU 1: SISWA ABSEN */}
+        {/* KARTU 1: SISWA ABSEN (Berdasarkan Hari) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
@@ -169,7 +200,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </p>
         </div>
 
-        {/* KARTU 2: GURU MENGISI JURNAL */}
+        {/* KARTU 2: GURU MENGISI JURNAL (Berdasarkan Hari) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
@@ -188,22 +219,22 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </p>
         </div>
 
-        {/* KARTU 3: GURU MENGISI LEGER NILAI */}
+        {/* KARTU 3: PROGRES PENGISIAN NILAI (Berdasarkan Bulan Ini) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Guru Mengisi Leger Nilai</p>
-              <h3 className="text-3xl font-black text-slate-900 mt-1 flex items-baseline gap-2">
-                {legerStats.terisi} 
-                <span className="text-xs font-bold text-slate-500">dari {legerStats.totalGuru} Guru</span>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Progres Pengisian Nilai (Bulan Ini)</p>
+              <h3 className="text-3xl font-black text-emerald-600 mt-1 flex items-baseline gap-2">
+                {nilaiProgressStats.persentase}%
+                <span className="text-xs font-bold text-slate-500">Selesai</span>
               </h3>
             </div>
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
-              <Clock size={22} />
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+              <Award size={22} />
             </div>
           </div>
           <p className="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100">
-            Akumulasi nilai harian & ujian tersimpan
+            Terpenuhi {nilaiProgressStats.terpenuhi} dari {nilaiProgressStats.totalTarget} penugasan kelas mapel
           </p>
         </div>
 
