@@ -11,7 +11,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
   
-  // State Khusus Progres Pengisian Nilai (Disamakan persis dengan KelolaNilaiView)
+  // State Progres Nilai (Dihitung mandiri berdasarkan bulan berjalan agar akurat sejak awal)
   const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
@@ -72,30 +72,28 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. Ambil Data Progres Nilai (Menggunakan Logika & Filter Bulan yang SAMA PERSIS dengan KelolaNilaiView)
+      // 5. Ambil Data Progres Nilai (Berdasarkan bulan aktif saat ini / getCurrentMonthName)
       const currentMonthName = getCurrentMonthName(); // Contoh: "September"
-      
       const [rNilai, rGuruMapel] = await Promise.all([
-        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan, created_at, tanggal'),
+        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan'),
         supabase.from('guru_mapel').select('*')
       ]);
 
       const allNilaiData = rNilai.data || [];
       const guruMapelList = rGuruMapel.data || [];
 
-      // Filter berdasarkan bulan aktif saat ini (persis seperti default state KelolaNilaiView)
+      // Filter nilai berdasarkan bulan aktif (persis seperti di KelolaNilaiView)
       const filteredNilaiByMonth = allNilaiData.filter((item: any) => {
-        return (item.bulan || '') === currentMonthName;
+        return (item.bulan || '').trim().toLowerCase() === currentMonthName.trim().toLowerCase();
       });
 
       const totalExpected = guruMapelList.length;
-      let fulfilledCount = 0;
 
       if (totalExpected > 0) {
         const uploadedSet = new Set(
           filteredNilaiByMonth.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
         );
-
+        let fulfilledCount = 0;
         guruMapelList.forEach((gm: any) => {
           const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
           if (uploadedSet.has(key)) {
@@ -224,7 +222,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </p>
         </div>
 
-        {/* KARTU 3: PROGRES PENGISIAN NILAI (Klik untuk navigasi ke halaman rekap penilaian) */}
+        {/* KARTU 3: PROGRES PENGISIAN NILAI (Klik untuk navigasi ke Rekap Nilai) */}
         <div 
           onClick={() => {
             if (onNavigateToNilai) {
