@@ -140,7 +140,7 @@ export default function NilaiDashboardStats({
   return (
     <div className="space-y-6 w-full relative">
       
-      {/* CARD RATA-RATA NILAI TERFILTER & PROGRES PENGISIAN (DAPAT DIKLIK) */}
+      {/* CARD RATA-RATA NILAI TERFILTER & PROGRES PENGISIAN */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -152,7 +152,7 @@ export default function NilaiDashboardStats({
           </div>
         </div>
 
-        {/* Kotak Progres Pengisian (Bisa Diklik untuk Membuka Modal Rincian Guru) */}
+        {/* Kotak Progres Pengisian (Bisa Diklik) */}
         <div 
           onClick={() => setShowProgressModal(true)}
           className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
@@ -372,7 +372,7 @@ export default function NilaiDashboardStats({
             <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/80 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold shrink-0">
-                  <Icons.Check />
+                  <Icons.Award />
                 </div>
                 <div>
                   <h2 className="text-sm sm:text-base font-black text-slate-900">Rincian Progres Pengisian Nilai Per Guru</h2>
