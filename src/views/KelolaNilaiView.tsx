@@ -117,8 +117,10 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
     });
   }, [data, search, filterMapel, filterKelas, filterGuru, filterBulan]);
 
+  // Kalkulasi Statistik, Rata-rata, & Progres Pengisian Berdasarkan Filter Aktif dan guru_mapel
   const stats = useMemo(() => {
-    if (filteredData.length === 0) return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0 };
+    if (filteredData.length === 0) return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0, progressPct: '0.0' };
+    
     const totalScore = filteredData.reduce((acc, curr) => acc + (curr.nilai || 0), 0);
     const avgScore = (totalScore / filteredData.length).toFixed(1);
     
@@ -130,8 +132,48 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       else remedial++;
     });
 
-    return { totalRecords: filteredData.length, avgScore, tuntasCount: tuntas, remedialCount: remedial };
-  }, [filteredData]);
+    // --- Perhitungan Progres Pengisian Berdasarkan guru_mapel dan Filter Aktif ---
+    let targetGuruMapel = options.guruMapel;
+    
+    if (filterGuru !== 'ALL') {
+      targetGuruMapel = targetGuruMapel.filter((gm: any) => gm.guru_id === filterGuru);
+    }
+    if (filterMapel !== 'ALL') {
+      targetGuruMapel = targetGuruMapel.filter((gm: any) => gm.mapel_id === filterMapel);
+    }
+    if (filterKelas !== 'ALL') {
+      targetGuruMapel = targetGuruMapel.filter((gm: any) => (gm.kelas || '').trim() === filterKelas.trim());
+    }
+
+    const totalExpectedAssignments = targetGuruMapel.length;
+    let progressPct = '100.0';
+
+    if (totalExpectedAssignments > 0) {
+      const uploadedAssignments = new Set(
+        filteredData.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
+      );
+      
+      let fulfilledCount = 0;
+      targetGuruMapel.forEach((gm: any) => {
+        const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
+        if (uploadedAssignments.has(key)) {
+          fulfilledCount++;
+        }
+      });
+
+      progressPct = ((fulfilledCount / totalExpectedAssignments) * 100).toFixed(1);
+    } else if (filteredData.length === 0) {
+      progressPct = '0.0';
+    }
+
+    return { 
+      totalRecords: filteredData.length, 
+      avgScore, 
+      tuntasCount: tuntas, 
+      remedialCount: remedial,
+      progressPct 
+    };
+  }, [filteredData, options.guruMapel, filterGuru, filterMapel, filterKelas]);
 
   const groupedByMapelAndKelas = useMemo(() => {
     const groups: { [key: string]: any[] } = {};
