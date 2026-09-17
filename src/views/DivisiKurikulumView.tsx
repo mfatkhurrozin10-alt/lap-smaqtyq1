@@ -42,7 +42,7 @@ export default function DivisiKurikulumView({
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
   const itemsPerPage = 10;
 
-  // Konfigurasi Kolom, Label, Tipe Input ('dropdown' | 'input'), dan Opsi Pilihan Kustom
+  // Konfigurasi Kolom, Label, Tipe Input, dan Pilihan Target Realisasi
   const [formConfig, setFormConfig] = useState<any>({
     show_petugas: true,
     show_guru: true,
@@ -67,7 +67,8 @@ export default function DivisiKurikulumView({
     options_mapel: [],
     options_kelas: [],
     options_jam: [],
-    options_santri_absen: []
+    options_santri_absen: [],
+    target_realisasi_type: 'percentage' 
   });
 
   const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
@@ -110,7 +111,6 @@ export default function DivisiKurikulumView({
             const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
             setSelectedProgramId(targetProg.id);
           } else {
-            // Memastikan program yg sedang aktif ada di filter list
             const currentSelected = prog.find((p: any) => p.id === selectedProgramId);
             if (currentSelected && currentSelected.timeframe) {
               setTimeframe(currentSelected.timeframe);
@@ -129,9 +129,24 @@ export default function DivisiKurikulumView({
     fetchData();
   }, [timeframe]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchProgramDetail = async () => {
+const fetchProgramDetail = async () => {
     if (!selectedProgramId) return;
     try {
+      // Perbaikan: Gunakan .eq().then() atau ambil dengan [0] untuk menghindari error TypeScript pada .single()
+      const { data: progList } = await supabase
+        .from('program_kegiatan')
+        .select('*')
+        .eq('id', selectedProgramId);
+
+      const progObj = progList && progList.length > 0 ? progList[0] : null;
+
+      if (progObj) {
+        setFormConfig((prev: any) => ({ 
+          ...prev, 
+          target_realisasi_type: progObj.target_realisasi_type || 'percentage' 
+        }));
+      }
+
       const { data: cfgList } = await supabase.from('divisi_form_config').select('*').eq('program_id', selectedProgramId);
       if (cfgList && cfgList.length > 0) {
         setFormConfig((prev: any) => ({ ...prev, ...cfgList[0] }));
@@ -152,7 +167,7 @@ export default function DivisiKurikulumView({
     fetchProgramDetail();
   }, [selectedProgramId]);
 
-const calculateCurrentScore = () => {
+  const calculateCurrentScore = () => {
     let totalButir = 0;
     let temuanAktif = 0;
     
@@ -164,10 +179,8 @@ const calculateCurrentScore = () => {
         const isChecked = !!checkedItems[butir.id];
         
         if (isPositif) {
-          // Jika kategori POSITIF: Dicentang = Bagus, TIDAK dicentang = Masalah
           if (!isChecked) temuanAktif++;
         } else {
-          // Jika kategori NEGATIF: Dicentang = Masalah, TIDAK dicentang = Bagus
           if (isChecked) temuanAktif++;
         }
       });
@@ -199,12 +212,12 @@ const calculateCurrentScore = () => {
       if (editingLogId) {
         const { error } = await supabase.from('divisi_log_pengawasan').update(payload).eq('id', editingLogId);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan kurikulum berhasil diperbarui!', 'success');
+        if (showNotification) showNotification('Laporan Kurikulum berhasil diperbarui!', 'success');
         setEditingLogId(null);
       } else {
         const { error } = await supabase.from('divisi_log_pengawasan').insert([payload]);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan kurikulum baru berhasil disimpan!', 'success');
+        if (showNotification) showNotification('Laporan Kurikulum baru berhasil disimpan!', 'success');
       }
 
       setCheckedItems({});
@@ -313,6 +326,27 @@ const calculateCurrentScore = () => {
       }
     } catch (err: any) {
       console.error(err);
+    }
+  };
+
+  // Fungsi simpan target_realisasi_type langsung ke tabel program_kegiatan
+  const handleUpdateTargetRealisasiType = async (newType: string) => {
+    const updated = { ...formConfig, target_realisasi_type: newType };
+    setFormConfig(updated);
+    if (!selectedProgramId) return;
+
+    try {
+      const { error } = await supabase
+        .from('program_kegiatan')
+        .update({ target_realisasi_type: newType })
+        .eq('id', selectedProgramId);
+
+      if (error) throw error;
+      if (showNotification) showNotification('Bentuk target realisasi berhasil disimpan permanen!', 'success');
+      fetchData();
+    } catch (err: any) {
+      console.error("Gagal menyimpan:", err);
+      if (showNotification) showNotification(`Gagal menyimpan: ${err.message}`, 'error');
     }
   };
 
@@ -657,12 +691,13 @@ const calculateCurrentScore = () => {
                 <tr>
                   <th className="px-6 py-4">No</th>
                   <th className="px-6 py-4">Waktu</th>
-                  {formConfig.show_petugas && <th className="px-6 py-4">{formConfig.label_petugas}</th>}
-                  {formConfig.show_guru && <th className="px-6 py-4">{formConfig.label_guru}</th>}
-                  {formConfig.show_mapel && <th className="px-6 py-4">{formConfig.label_mapel}</th>}
-                  {formConfig.show_kelas && <th className="px-6 py-4">{formConfig.label_kelas}</th>}
-                  {formConfig.show_jam && <th className="px-6 py-4">{formConfig.label_jam}</th>}
-                  {formConfig.show_santri_absen && <th className="px-6 py-4">{formConfig.label_santri_absen}</th>}
+                  {/* Header dinamis berdasarkan label dan status show di formConfig */}
+                  {formConfig.show_petugas && <th className="px-6 py-4">{formConfig.label_petugas || 'Petugas (PJ)'}</th>}
+                  {formConfig.show_guru && <th className="px-6 py-4">{formConfig.label_guru || 'Guru / Pengajar'}</th>}
+                  {formConfig.show_mapel && <th className="px-6 py-4">{formConfig.label_mapel || 'Mata Pelajaran'}</th>}
+                  {formConfig.show_kelas && <th className="px-6 py-4">{formConfig.label_kelas || 'Kelas'}</th>}
+                  {formConfig.show_jam && <th className="px-6 py-4">{formConfig.label_jam || 'Jam Ke-'}</th>}
+                  {formConfig.show_santri_absen && <th className="px-6 py-4">{formConfig.label_santri_absen || 'Keterangan / Absen'}</th>}
                   <th className="px-6 py-4">Skor</th>
                   <th className="px-6 py-4">Catatan</th>
                   <th className="px-6 py-4 text-center">Aksi</th>
@@ -682,12 +717,15 @@ const calculateCurrentScore = () => {
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 font-mono text-slate-400">{absoluteIndex}</td>
                         <td className="px-6 py-4 text-slate-600 text-xs">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
+                        
+                        {/* Data baris yang ikut tersembunyi/tampil sesuai pengaturan formConfig */}
                         {formConfig.show_petugas && <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj || '-'}</td>}
                         {formConfig.show_guru && <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target || '-'}</td>}
                         {formConfig.show_mapel && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '-'}</td>}
                         {formConfig.show_kelas && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '-'}</td>}
                         {formConfig.show_jam && <td className="px-6 py-4 text-slate-600">{item.jam_pembelajaran || '-'}</td>}
                         {formConfig.show_santri_absen && <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>}
+                        
                         <td className={`px-6 py-4 font-black ${getScoreTextColor(skorVal)}`}>
                           {skorVal}%
                         </td>
@@ -808,7 +846,6 @@ const calculateCurrentScore = () => {
 
             <div className="space-y-2">
               {(() => {
-                // Hitung ulang daftar masalah berdasarkan log yang tersimpan & tipe kategori
                 let daftarMasalah: any[] = [];
                 if (selectedDetailLog.detail_ceklis) {
                   kategoriList.forEach((kat: any) => {
@@ -875,29 +912,179 @@ const calculateCurrentScore = () => {
       )}
 
       {activeSubTab === 'realisasi' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Target Resmi IKU ({timeframe})</p>
-            <h3 className="text-3xl font-black text-slate-900">100%</h3>
-            <p className="text-xs text-slate-500">Target indikator kinerja utama program</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Realisasi Tercapai</p>
-            <h3 className={`text-3xl font-black ${getScoreTextColor(averageRealisasi)}`}>
-              {averageRealisasi.toFixed(1)}%
-            </h3>
-            <p className="text-xs text-slate-500">Rata-rata kepatuhan dari {riwayatList.length} sesi</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Keterisian Data</p>
-            <h3 className="text-3xl font-black text-emerald-600">{riwayatList.length} Laporan</h3>
-            <p className="text-xs text-slate-500">Total formulir ceklis berhasil diinput</p>
-          </div>
+        <div className="space-y-6">
+          {formConfig.target_realisasi_type === 'count' ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Tipe Target Realisasi</p>
+                  <h3 className="text-2xl font-black text-blue-600">Count (Hitungan Frekuensi)</h3>
+                  <p className="text-xs text-slate-500">Dihitung berdasarkan jumlah pengisian formulir</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Total Keseluruhan (Count)</p>
+                  <h3 className="text-3xl font-black text-slate-900">
+                    {riwayatList.length} <span className="text-sm font-normal text-slate-500">Kali</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">Akumulasi total log laporan masuk</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+                <h3 className="font-bold text-slate-800">Rekapitulasi Hitungan (Count) Pengisian Form Per Bulan</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      <tr>
+                        <th className="px-6 py-3">Bulan & Tahun</th>
+                        <th className="px-6 py-3">Jumlah Pengisian (Count)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(() => {
+                        const groupedByMonth: { [key: string]: any[] } = {};
+                        riwayatList.forEach((item: any) => {
+                          const monthKey = new Date(item.waktu_input).toISOString().slice(0, 7);
+                          if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
+                          groupedByMonth[monthKey].push(item);
+                        });
+
+                        const monthKeys = Object.keys(groupedByMonth).sort().reverse();
+                        const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+                        if (monthKeys.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={2} className="text-center py-8 text-slate-400">Belum ada data rekam jejak pengisian.</td>
+                            </tr>
+                          );
+                        }
+
+                        return monthKeys.map((mKey) => {
+                          const [y, m] = mKey.split('-');
+                          const labelBulan = `${monthNames[parseInt(m) - 1]} ${y}`;
+                          const countPengisian = groupedByMonth[mKey].length;
+
+                          return (
+                            <tr key={mKey} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-6 py-4 font-bold text-slate-800">{labelBulan}</td>
+                              <td className="px-6 py-4">
+                                <span className="px-3 py-1 bg-blue-50 text-blue-700 font-black rounded-lg border border-blue-100">
+                                  {countPengisian} Kali
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Tipe Target Realisasi</p>
+                  <h3 className="text-2xl font-black text-slate-900">Persentase (%)</h3>
+                  <p className="text-xs text-slate-500">Berdasarkan skor kepatuhan ceklis</p>
+                </div>
+                
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Rata-rata Realisasi Skor</p>
+                  <h3 className={`text-3xl font-black ${getScoreTextColor(averageRealisasi)}`}>
+                    {averageRealisasi.toFixed(1)}%
+                  </h3>
+                  <p className="text-xs text-slate-500">Rata-rata kepatuhan keseluruhan</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Total Keterisian Data</p>
+                  <h3 className="text-3xl font-black text-blue-600">{riwayatList.length} Laporan</h3>
+                  <p className="text-xs text-slate-500">Total formulir berhasil diinput</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+                <h3 className="font-bold text-slate-800">Rekapitulasi Persentase Skor Per Bulan</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      <tr>
+                        <th className="px-6 py-3">Bulan & Tahun</th>
+                        <th className="px-6 py-3">Jumlah Laporan</th>
+                        <th className="px-6 py-3">Rata-rata Skor (%)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(() => {
+                        const groupedByMonth: { [key: string]: any[] } = {};
+                        riwayatList.forEach((item: any) => {
+                          const monthKey = new Date(item.waktu_input).toISOString().slice(0, 7);
+                          if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
+                          groupedByMonth[monthKey].push(item);
+                        });
+
+                        const monthKeys = Object.keys(groupedByMonth).sort().reverse();
+                        const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+                        if (monthKeys.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={3} className="text-center py-8 text-slate-400">Belum ada data rekam jejak pengisian.</td>
+                            </tr>
+                          );
+                        }
+
+                        return monthKeys.map((mKey) => {
+                          const [y, m] = mKey.split('-');
+                          const labelBulan = `${monthNames[parseInt(m) - 1]} ${y}`;
+                          const logsInMonth = groupedByMonth[mKey];
+                          const avgSkorBulan = logsInMonth.reduce((acc, curr) => acc + Number(curr.skor_persen || 0), 0) / logsInMonth.length;
+
+                          return (
+                            <tr key={mKey} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-6 py-4 font-bold text-slate-800">{labelBulan}</td>
+                              <td className="px-6 py-4 text-slate-600 font-semibold">{logsInMonth.length} Laporan</td>
+                              <td className={`px-6 py-4 font-black ${getScoreTextColor(avgSkorBulan)}`}>
+                                {avgSkorBulan.toFixed(1)}%
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {activeSubTab === 'customize' && (
         <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <BarChart2 size={18} className="text-blue-600" /> PENGATURAN BENTUK TARGET REALISASI
+            </h3>
+            <p className="text-xs text-slate-500">Pilih apakah hasil akhir target realisasi pada program ini ditampilkan dalam bentuk Persentase (%) atau Count (Hitungan Frekuensi Pengisian).</p>
+            
+            <div className="max-w-md">
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Pilih Bentuk Target Realisasi:</label>
+              <select 
+                value={formConfig.target_realisasi_type || 'percentage'}
+                onChange={(e) => handleUpdateTargetRealisasiType(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none cursor-pointer"
+              >
+                <option value="percentage">Persentase (%)</option>
+                <option value="count">Count (Hitungan Berapa Kali Diisi)</option>
+              </select>
+            </div>
+          </div>
+
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
               <div>

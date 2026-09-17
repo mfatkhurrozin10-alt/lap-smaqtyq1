@@ -1,27 +1,32 @@
-// src/views/DivisiBahasaView.tsx
+// src/views/DivisiHumasView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function DivisiBahasaView({ showNotification }: any) {
+export default function DivisiHumasView({ 
+  showNotification, 
+  initialTab = 'form', 
+  initialTimeframe = 'Harian', 
+  initialProgramId = '' 
+}: any) {
   const [loading, setLoading] = useState(true);
   const [divisiData, setDivisiData] = useState<any>({
-    nama_divisi: 'Bahasa',
-    nama_koordinator: 'Tim Bahasa'
+    nama_divisi: 'Humas',
+    nama_koordinator: 'Tim Humas'
   });
   
   const [programList, setProgramList] = useState<any[]>([]);
-  const [selectedProgramId, setSelectedProgramId] = useState<string>('');
-  const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>('form');
+  const [selectedProgramId, setSelectedProgramId] = useState<string>(initialProgramId);
+  const [activeSubTab, setActiveSubTab] = useState<'form' | 'riwayat' | 'realisasi' | 'customize'>(initialTab);
   
-  const [timeframe, setTimeframe] = useState('Harian');
+  const [timeframe, setTimeframe] = useState(initialTimeframe);
 
   const [formInput, setFormInput] = useState({
     petugas_pj: '',
     guru_target: '',
     mapel_kelas: '',
     kelas_dipilih: '',
-    jam_pembelajaran: '07:00 - Selesai',
+    jam_pembelajaran: '1-2',
     santri_absen: 'Nihil',
     catatan: ''
   });
@@ -37,7 +42,7 @@ export default function DivisiBahasaView({ showNotification }: any) {
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
   const itemsPerPage = 10;
 
-  // Konfigurasi Kolom, Label, Tipe Input ('dropdown' | 'input'), dan Opsi Pilihan Kustom
+  // Konfigurasi Kolom, Label, Tipe Input, dan Pilihan Target Realisasi
   const [formConfig, setFormConfig] = useState<any>({
     show_petugas: true,
     show_guru: true,
@@ -46,11 +51,11 @@ export default function DivisiBahasaView({ showNotification }: any) {
     show_jam: true,
     show_santri_absen: true,
     label_petugas: 'Petugas (PJ)',
-    label_guru: 'Target / Mahasantri',
-    label_mapel: 'Program Bahasa',
-    label_kelas: 'Area / Zona',
-    label_jam: 'Waktu / Sesi',
-    label_santri_absen: 'Pelanggaran / Kosakata',
+    label_guru: 'Guru / Pengajar',
+    label_mapel: 'Mata Pelajaran',
+    label_kelas: 'Kelas',
+    label_jam: 'Jam Ke-',
+    label_santri_absen: 'Keterangan / Absen',
     type_petugas: 'input',
     type_guru: 'input',
     type_mapel: 'input',
@@ -62,7 +67,8 @@ export default function DivisiBahasaView({ showNotification }: any) {
     options_mapel: [],
     options_kelas: [],
     options_jam: [],
-    options_santri_absen: []
+    options_santri_absen: [],
+    target_realisasi_type: 'percentage' 
   });
 
   const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
@@ -92,16 +98,24 @@ export default function DivisiBahasaView({ showNotification }: any) {
     setLoading(true);
     try {
       const { data: divList } = await supabase.from('divisi').select('*');
-      const divisiObj = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('bahasa')) || divList?.[0];
+      const divisiObj = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('humas')) || divList?.[0];
 
       if (divisiObj) {
         setDivisiData(divisiObj);
         const { data: prog } = await supabase.from('program_kegiatan').select('*, indikator_iku(kode_iku, judul_iku)').eq('divisi_id', divisiObj.id);
         if (prog && prog.length > 0) {
           setProgramList(prog);
-          const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
-          const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
-          setSelectedProgramId(targetProg.id);
+          
+          if (!selectedProgramId) {
+            const filteredByTime = prog.filter((p: any) => p.timeframe?.toLowerCase() === timeframe.toLowerCase());
+            const targetProg = filteredByTime.length > 0 ? filteredByTime[0] : prog[0];
+            setSelectedProgramId(targetProg.id);
+          } else {
+            const currentSelected = prog.find((p: any) => p.id === selectedProgramId);
+            if (currentSelected && currentSelected.timeframe) {
+              setTimeframe(currentSelected.timeframe);
+            }
+          }
         }
       }
     } catch (err) {
@@ -113,11 +127,26 @@ export default function DivisiBahasaView({ showNotification }: any) {
 
   useEffect(() => {
     fetchData();
-  }, [timeframe]);
+  }, [timeframe]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchProgramDetail = async () => {
+const fetchProgramDetail = async () => {
     if (!selectedProgramId) return;
     try {
+      // Perbaikan: Gunakan .eq().then() atau ambil dengan [0] untuk menghindari error TypeScript pada .single()
+      const { data: progList } = await supabase
+        .from('program_kegiatan')
+        .select('*')
+        .eq('id', selectedProgramId);
+
+      const progObj = progList && progList.length > 0 ? progList[0] : null;
+
+      if (progObj) {
+        setFormConfig((prev: any) => ({ 
+          ...prev, 
+          target_realisasi_type: progObj.target_realisasi_type || 'percentage' 
+        }));
+      }
+
       const { data: cfgList } = await supabase.from('divisi_form_config').select('*').eq('program_id', selectedProgramId);
       if (cfgList && cfgList.length > 0) {
         setFormConfig((prev: any) => ({ ...prev, ...cfgList[0] }));
@@ -141,12 +170,22 @@ export default function DivisiBahasaView({ showNotification }: any) {
   const calculateCurrentScore = () => {
     let totalButir = 0;
     let temuanAktif = 0;
+    
     kategoriList.forEach(kat => {
+      const isPositif = kat.tipe_kategori?.toLowerCase().includes('positif');
+      
       kat.divisi_butir_ceklis?.forEach((butir: any) => {
         totalButir++;
-        if (checkedItems[butir.id]) temuanAktif++;
+        const isChecked = !!checkedItems[butir.id];
+        
+        if (isPositif) {
+          if (!isChecked) temuanAktif++;
+        } else {
+          if (isChecked) temuanAktif++;
+        }
       });
     });
+    
     const skorPersen = totalButir > 0 ? Number(((1 - (temuanAktif / totalButir)) * 100).toFixed(1)) : 100;
     const skala = Number((skorPersen / 33.3).toFixed(2));
     return { skorPersen, skala };
@@ -173,12 +212,12 @@ export default function DivisiBahasaView({ showNotification }: any) {
       if (editingLogId) {
         const { error } = await supabase.from('divisi_log_pengawasan').update(payload).eq('id', editingLogId);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan bahasa berhasil diperbarui!', 'success');
+        if (showNotification) showNotification('Laporan Humas berhasil diperbarui!', 'success');
         setEditingLogId(null);
       } else {
         const { error } = await supabase.from('divisi_log_pengawasan').insert([payload]);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan bahasa baru berhasil disimpan!', 'success');
+        if (showNotification) showNotification('Laporan Humas baru berhasil disimpan!', 'success');
       }
 
       setCheckedItems({});
@@ -197,7 +236,7 @@ export default function DivisiBahasaView({ showNotification }: any) {
       guru_target: item.guru_target || '',
       mapel_kelas: item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '',
       kelas_dipilih: item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '',
-      jam_pembelajaran: item.jam_pembelajaran || '07:00 - Selesai',
+      jam_pembelajaran: item.jam_pembelajaran || '1-2',
       santri_absen: item.santri_absen || 'Nihil',
       catatan: item.catatan_temuan || ''
     });
@@ -290,6 +329,27 @@ export default function DivisiBahasaView({ showNotification }: any) {
     }
   };
 
+  // Fungsi simpan target_realisasi_type langsung ke tabel program_kegiatan
+  const handleUpdateTargetRealisasiType = async (newType: string) => {
+    const updated = { ...formConfig, target_realisasi_type: newType };
+    setFormConfig(updated);
+    if (!selectedProgramId) return;
+
+    try {
+      const { error } = await supabase
+        .from('program_kegiatan')
+        .update({ target_realisasi_type: newType })
+        .eq('id', selectedProgramId);
+
+      if (error) throw error;
+      if (showNotification) showNotification('Bentuk target realisasi berhasil disimpan permanen!', 'success');
+      fetchData();
+    } catch (err: any) {
+      console.error("Gagal menyimpan:", err);
+      if (showNotification) showNotification(`Gagal menyimpan: ${err.message}`, 'error');
+    }
+  };
+
   const handleSaveColumnCustomize = async (columnKey: string) => {
     const mapConfig: any = {
       show_petugas: { label: 'label_petugas', type: 'type_petugas', opts: 'options_petugas' },
@@ -362,7 +422,7 @@ export default function DivisiBahasaView({ showNotification }: any) {
   };
 
   if (loading) {
-    return <div className="p-12 text-center text-slate-500 font-medium">Memuat data Divisi Bahasa...</div>;
+    return <div className="p-12 text-center text-slate-500 font-medium">Memuat data Divisi Humas...</div>;
   }
 
   const filteredProgramsByTime = programList.filter((p: any) => !p.timeframe || p.timeframe.toLowerCase() === timeframe.toLowerCase());
@@ -427,16 +487,16 @@ export default function DivisiBahasaView({ showNotification }: any) {
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Divisi {divisiData?.nama_divisi || 'Bahasa'}</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Koordinator: <span className="font-semibold text-slate-700">{divisiData?.nama_koordinator || 'Tim Bahasa'}</span></p>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Divisi {divisiData?.nama_divisi || 'Humas'}</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Koordinator: <span className="font-semibold text-slate-700">{divisiData?.nama_koordinator || 'Tim Kurikulum'}</span></p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex bg-slate-100 p-1 rounded-xl">
-            {['Harian', 'Mingguan', 'Bulanan', 'Tahunan'].map(tf => (
+            {['Harian', 'Mingguan', 'Bulanan', 'Semesteran', 'Tahunan'].map(tf => (
               <button
                 key={tf}
-                onClick={() => setTimeframe(tf)}
+                onClick={() => { setTimeframe(tf); setSelectedProgramId(''); }}
                 className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${timeframe === tf ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 {tf}
@@ -579,7 +639,7 @@ export default function DivisiBahasaView({ showNotification }: any) {
                 {editingLogId && (
                   <button 
                     type="button" 
-                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '07:00 - Selesai', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
+                    onClick={() => { setEditingLogId(null); setFormInput({ petugas_pj: '', guru_target: '', mapel_kelas: '', kelas_dipilih: '', jam_pembelajaran: '1-2', santri_absen: 'Nihil', catatan: '' }); setCheckedItems({}); }}
                     className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
                   >
                     Batal Edit
@@ -631,12 +691,13 @@ export default function DivisiBahasaView({ showNotification }: any) {
                 <tr>
                   <th className="px-6 py-4">No</th>
                   <th className="px-6 py-4">Waktu</th>
-                  {formConfig.show_petugas && <th className="px-6 py-4">{formConfig.label_petugas}</th>}
-                  {formConfig.show_guru && <th className="px-6 py-4">{formConfig.label_guru}</th>}
-                  {formConfig.show_mapel && <th className="px-6 py-4">{formConfig.label_mapel}</th>}
-                  {formConfig.show_kelas && <th className="px-6 py-4">{formConfig.label_kelas}</th>}
-                  {formConfig.show_jam && <th className="px-6 py-4">{formConfig.label_jam}</th>}
-                  {formConfig.show_santri_absen && <th className="px-6 py-4">{formConfig.label_santri_absen}</th>}
+                  {/* Header dinamis berdasarkan label dan status show di formConfig */}
+                  {formConfig.show_petugas && <th className="px-6 py-4">{formConfig.label_petugas || 'Petugas (PJ)'}</th>}
+                  {formConfig.show_guru && <th className="px-6 py-4">{formConfig.label_guru || 'Guru / Pengajar'}</th>}
+                  {formConfig.show_mapel && <th className="px-6 py-4">{formConfig.label_mapel || 'Mata Pelajaran'}</th>}
+                  {formConfig.show_kelas && <th className="px-6 py-4">{formConfig.label_kelas || 'Kelas'}</th>}
+                  {formConfig.show_jam && <th className="px-6 py-4">{formConfig.label_jam || 'Jam Ke-'}</th>}
+                  {formConfig.show_santri_absen && <th className="px-6 py-4">{formConfig.label_santri_absen || 'Keterangan / Absen'}</th>}
                   <th className="px-6 py-4">Skor</th>
                   <th className="px-6 py-4">Catatan</th>
                   <th className="px-6 py-4 text-center">Aksi</th>
@@ -656,12 +717,15 @@ export default function DivisiBahasaView({ showNotification }: any) {
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 font-mono text-slate-400">{absoluteIndex}</td>
                         <td className="px-6 py-4 text-slate-600 text-xs">{new Date(item.waktu_input).toLocaleString('id-ID')}</td>
+                        
+                        {/* Data baris yang ikut tersembunyi/tampil sesuai pengaturan formConfig */}
                         {formConfig.show_petugas && <td className="px-6 py-4 font-semibold text-slate-800 max-w-xs truncate">{item.petugas_pj || '-'}</td>}
                         {formConfig.show_guru && <td className="px-6 py-4 text-slate-700 font-medium">{item.guru_target || '-'}</td>}
                         {formConfig.show_mapel && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas ? item.mapel_kelas.split(' (')[0] : '-'}</td>}
                         {formConfig.show_kelas && <td className="px-6 py-4 text-slate-600">{item.mapel_kelas && item.mapel_kelas.includes('(') ? item.mapel_kelas.split('(')[1].replace(')', '') : '-'}</td>}
                         {formConfig.show_jam && <td className="px-6 py-4 text-slate-600">{item.jam_pembelajaran || '-'}</td>}
                         {formConfig.show_santri_absen && <td className="px-6 py-4 text-slate-600">{item.santri_absen || 'Nihil'}</td>}
+                        
                         <td className={`px-6 py-4 font-black ${getScoreTextColor(skorVal)}`}>
                           {skorVal}%
                         </td>
@@ -705,7 +769,7 @@ export default function DivisiBahasaView({ showNotification }: any) {
               
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                  onClick={() => setCurrentPage((p: number) => Math.max(p - 1, 1))}
                   disabled={currentPage === 1}
                   className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
@@ -715,7 +779,7 @@ export default function DivisiBahasaView({ showNotification }: any) {
                   Hal {currentPage} dari {totalPages}
                 </span>
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                  onClick={() => setCurrentPage((p: number) => Math.min(p + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
@@ -734,7 +798,7 @@ export default function DivisiBahasaView({ showNotification }: any) {
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <Eye size={20} className="text-blue-600" /> Detail Hasil Pengawasan Bahasa
+                  <Eye size={20} className="text-blue-600" /> Detail Hasil Pengawasan Humas
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">Program: <span className="font-semibold text-slate-700">{selectedProgramObj?.nama_program}</span> • ID #{selectedDetailLog.id.slice(-4)}</p>
               </div>
@@ -781,35 +845,50 @@ export default function DivisiBahasaView({ showNotification }: any) {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">RINCIAN INDIKATOR MASALAH / TEMUAN DICENTANG</h4>
-                <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100">
-                  {selectedDetailLog.detail_ceklis ? Object.values(selectedDetailLog.detail_ceklis).filter(Boolean).length : 0} Temuan
-                </span>
-              </div>
+              {(() => {
+                let daftarMasalah: any[] = [];
+                if (selectedDetailLog.detail_ceklis) {
+                  kategoriList.forEach((kat: any) => {
+                    const isPositif = kat.tipe_kategori?.toLowerCase().includes('positif');
+                    kat.divisi_butir_ceklis?.forEach((b: any) => {
+                      const isChecked = !!selectedDetailLog.detail_ceklis[b.id];
+                      
+                      if (isPositif && !isChecked) {
+                        daftarMasalah.push({ nama: b.nama_butir, label: 'Belum Tercapai' });
+                      } else if (!isPositif && isChecked) {
+                        daftarMasalah.push({ nama: b.nama_butir, label: 'Temuan Masalah' });
+                      }
+                    });
+                  });
+                }
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 max-h-40 overflow-y-auto">
-                {selectedDetailLog.detail_ceklis && Object.keys(selectedDetailLog.detail_ceklis).length > 0 ? (
-                  Object.entries(selectedDetailLog.detail_ceklis)
-                    .filter(([_, val]) => val === true)
-                    .map(([key], i) => {
-                      let namaButirItem = key;
-                      kategoriList.forEach(kat => {
-                        kat.divisi_butir_ceklis?.forEach((b: any) => {
-                          if (b.id === key) namaButirItem = b.nama_butir;
-                        });
-                      });
-                      return (
-                        <div key={i} className="flex items-center gap-2 p-3 bg-rose-50/50 border border-rose-100 rounded-xl text-xs font-medium text-rose-900">
-                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
-                          <span className="truncate">{namaButirItem}</span>
-                        </div>
-                      );
-                    })
-                ) : (
-                  <p className="text-xs text-slate-400 italic py-2 col-span-2">Tidak ada indikator bermasalah yang dicentang (Semua sesuai standar / bersih).</p>
-                )}
-              </div>
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">RINCIAN MASALAH / BELUM TERCAPAI</h4>
+                      <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100">
+                        {daftarMasalah.length} Temuan
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 max-h-40 overflow-y-auto">
+                      {daftarMasalah.length > 0 ? (
+                        daftarMasalah.map((item, i) => (
+                          <div key={i} className="flex flex-col justify-center p-3 bg-rose-50/50 border border-rose-100 rounded-xl text-xs font-medium text-rose-900">
+                            <div className="flex items-center gap-2">
+                               <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                               <span className="truncate font-bold">{item.nama}</span>
+                            </div>
+                            <span className="text-[10px] text-rose-500 ml-4 font-normal tracking-wide">{item.label}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-slate-400 italic py-2 col-span-2">Semua indikator sesuai standar (100% Tercapai / Bersih).</p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div className="space-y-1.5">
@@ -833,29 +912,179 @@ export default function DivisiBahasaView({ showNotification }: any) {
       )}
 
       {activeSubTab === 'realisasi' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Target Resmi IKU ({timeframe})</p>
-            <h3 className="text-3xl font-black text-slate-900">100%</h3>
-            <p className="text-xs text-slate-500">Target indikator kinerja utama program</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Realisasi Tercapai</p>
-            <h3 className={`text-3xl font-black ${getScoreTextColor(averageRealisasi)}`}>
-              {averageRealisasi.toFixed(1)}%
-            </h3>
-            <p className="text-xs text-slate-500">Rata-rata kepatuhan dari {riwayatList.length} sesi</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase">Keterisian Data</p>
-            <h3 className="text-3xl font-black text-emerald-600">{riwayatList.length} Laporan</h3>
-            <p className="text-xs text-slate-500">Total formulir ceklis berhasil diinput</p>
-          </div>
+        <div className="space-y-6">
+          {formConfig.target_realisasi_type === 'count' ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Tipe Target Realisasi</p>
+                  <h3 className="text-2xl font-black text-blue-600">Count (Hitungan Frekuensi)</h3>
+                  <p className="text-xs text-slate-500">Dihitung berdasarkan jumlah pengisian formulir</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Total Keseluruhan (Count)</p>
+                  <h3 className="text-3xl font-black text-slate-900">
+                    {riwayatList.length} <span className="text-sm font-normal text-slate-500">Kali</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">Akumulasi total log laporan masuk</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+                <h3 className="font-bold text-slate-800">Rekapitulasi Hitungan (Count) Pengisian Form Per Bulan</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      <tr>
+                        <th className="px-6 py-3">Bulan & Tahun</th>
+                        <th className="px-6 py-3">Jumlah Pengisian (Count)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(() => {
+                        const groupedByMonth: { [key: string]: any[] } = {};
+                        riwayatList.forEach((item: any) => {
+                          const monthKey = new Date(item.waktu_input).toISOString().slice(0, 7);
+                          if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
+                          groupedByMonth[monthKey].push(item);
+                        });
+
+                        const monthKeys = Object.keys(groupedByMonth).sort().reverse();
+                        const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+                        if (monthKeys.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={2} className="text-center py-8 text-slate-400">Belum ada data rekam jejak pengisian.</td>
+                            </tr>
+                          );
+                        }
+
+                        return monthKeys.map((mKey) => {
+                          const [y, m] = mKey.split('-');
+                          const labelBulan = `${monthNames[parseInt(m) - 1]} ${y}`;
+                          const countPengisian = groupedByMonth[mKey].length;
+
+                          return (
+                            <tr key={mKey} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-6 py-4 font-bold text-slate-800">{labelBulan}</td>
+                              <td className="px-6 py-4">
+                                <span className="px-3 py-1 bg-blue-50 text-blue-700 font-black rounded-lg border border-blue-100">
+                                  {countPengisian} Kali
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Tipe Target Realisasi</p>
+                  <h3 className="text-2xl font-black text-slate-900">Persentase (%)</h3>
+                  <p className="text-xs text-slate-500">Berdasarkan skor kepatuhan ceklis</p>
+                </div>
+                
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Rata-rata Realisasi Skor</p>
+                  <h3 className={`text-3xl font-black ${getScoreTextColor(averageRealisasi)}`}>
+                    {averageRealisasi.toFixed(1)}%
+                  </h3>
+                  <p className="text-xs text-slate-500">Rata-rata kepatuhan keseluruhan</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Total Keterisian Data</p>
+                  <h3 className="text-3xl font-black text-blue-600">{riwayatList.length} Laporan</h3>
+                  <p className="text-xs text-slate-500">Total formulir berhasil diinput</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+                <h3 className="font-bold text-slate-800">Rekapitulasi Persentase Skor Per Bulan</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      <tr>
+                        <th className="px-6 py-3">Bulan & Tahun</th>
+                        <th className="px-6 py-3">Jumlah Laporan</th>
+                        <th className="px-6 py-3">Rata-rata Skor (%)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(() => {
+                        const groupedByMonth: { [key: string]: any[] } = {};
+                        riwayatList.forEach((item: any) => {
+                          const monthKey = new Date(item.waktu_input).toISOString().slice(0, 7);
+                          if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
+                          groupedByMonth[monthKey].push(item);
+                        });
+
+                        const monthKeys = Object.keys(groupedByMonth).sort().reverse();
+                        const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+                        if (monthKeys.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={3} className="text-center py-8 text-slate-400">Belum ada data rekam jejak pengisian.</td>
+                            </tr>
+                          );
+                        }
+
+                        return monthKeys.map((mKey) => {
+                          const [y, m] = mKey.split('-');
+                          const labelBulan = `${monthNames[parseInt(m) - 1]} ${y}`;
+                          const logsInMonth = groupedByMonth[mKey];
+                          const avgSkorBulan = logsInMonth.reduce((acc, curr) => acc + Number(curr.skor_persen || 0), 0) / logsInMonth.length;
+
+                          return (
+                            <tr key={mKey} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-6 py-4 font-bold text-slate-800">{labelBulan}</td>
+                              <td className="px-6 py-4 text-slate-600 font-semibold">{logsInMonth.length} Laporan</td>
+                              <td className={`px-6 py-4 font-black ${getScoreTextColor(avgSkorBulan)}`}>
+                                {avgSkorBulan.toFixed(1)}%
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {activeSubTab === 'customize' && (
         <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <BarChart2 size={18} className="text-blue-600" /> PENGATURAN BENTUK TARGET REALISASI
+            </h3>
+            <p className="text-xs text-slate-500">Pilih apakah hasil akhir target realisasi pada program ini ditampilkan dalam bentuk Persentase (%) atau Count (Hitungan Frekuensi Pengisian).</p>
+            
+            <div className="max-w-md">
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Pilih Bentuk Target Realisasi:</label>
+              <select 
+                value={formConfig.target_realisasi_type || 'percentage'}
+                onChange={(e) => handleUpdateTargetRealisasiType(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none cursor-pointer"
+              >
+                <option value="percentage">Persentase (%)</option>
+                <option value="count">Count (Hitungan Berapa Kali Diisi)</option>
+              </select>
+            </div>
+          </div>
+
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
               <div>
@@ -874,11 +1103,11 @@ export default function DivisiBahasaView({ showNotification }: any) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
               {[
                 { key: 'show_petugas', defaultLabel: 'Petugas (PJ)', labelKey: 'label_petugas', typeKey: 'type_petugas', optsKey: 'options_petugas' },
-                { key: 'show_guru', defaultLabel: 'Target / Mahasantri', labelKey: 'label_guru', typeKey: 'type_guru', optsKey: 'options_guru' },
-                { key: 'show_mapel', defaultLabel: 'Program Bahasa', labelKey: 'label_mapel', typeKey: 'type_mapel', optsKey: 'options_mapel' },
-                { key: 'show_kelas', defaultLabel: 'Area / Zona', labelKey: 'label_kelas', typeKey: 'type_kelas', optsKey: 'options_kelas' },
-                { key: 'show_jam', defaultLabel: 'Waktu / Sesi', labelKey: 'label_jam', typeKey: 'type_jam', optsKey: 'options_jam' },
-                { key: 'show_santri_absen', defaultLabel: 'Pelanggaran / Kosakata', labelKey: 'label_santri_absen', typeKey: 'type_santri_absen', optsKey: 'options_santri_absen' },
+                { key: 'show_guru', defaultLabel: 'Guru / Pengajar', labelKey: 'label_guru', typeKey: 'type_guru', optsKey: 'options_guru' },
+                { key: 'show_mapel', defaultLabel: 'Mata Pelajaran', labelKey: 'label_mapel', typeKey: 'type_mapel', optsKey: 'options_mapel' },
+                { key: 'show_kelas', defaultLabel: 'Kelas', labelKey: 'label_kelas', typeKey: 'type_kelas', optsKey: 'options_kelas' },
+                { key: 'show_jam', defaultLabel: 'Jam Ke-', labelKey: 'label_jam', typeKey: 'type_jam', optsKey: 'options_jam' },
+                { key: 'show_santri_absen', defaultLabel: 'Keterangan / Absen', labelKey: 'label_santri_absen', typeKey: 'type_santri_absen', optsKey: 'options_santri_absen' },
               ].map((item) => {
                 const currentLabel = formConfig[item.labelKey] || item.defaultLabel;
                 const isChecked = formConfig[item.key];
