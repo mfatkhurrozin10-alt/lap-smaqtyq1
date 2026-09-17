@@ -1,17 +1,20 @@
 // src/views/DashboardPantauanView.tsx
 import { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase, getCurrentMonthName } from '../services/supabase';
 import { CheckCircle2, Clock, Eye, RefreshCw, AlertCircle, Award } from 'lucide-react';
 
 export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai }: any) {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   
+  // STATE FILTER BULAN MANUAL (Default mengikuti bulan aktif saat ini)
+  const [filterBulanNilai, setFilterBulanNilai] = useState(getCurrentMonthName());
+  
   // State Statistik Atas
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
   
-  // State Progres Nilai (Menggunakan total keseluruhan data nilai tanpa batasan bulan)
+  // State Progres Nilai
   const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
@@ -72,19 +75,26 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. AMBIL DATA PROGRES NILAI KESELURUHAN (TANPA FILTER BULAN AGAR SAMA PERSIS DENGAN KELOLANILAIVIEW KETIKA DEFAULT/SEMUA)
+      // 5. AMBIL DATA PROGRES NILAI DENGAN FILTER MANUAL (Mengikuti state filterBulanNilai)
       const [rNilai, rGuruMapel] = await Promise.all([
-        supabase.from('nilai').select('guru_id, mapel_id, kelas'),
+        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan'),
         supabase.from('guru_mapel').select('*')
       ]);
 
       const allNilaiData = rNilai.data || [];
       const guruMapelList = rGuruMapel.data || [];
+
+      // Filter data nilai berdasarkan pilihan dropdown manual (ALL atau Nama Bulan)
+      const filteredNilaiData = allNilaiData.filter((item: any) => {
+        if (filterBulanNilai === 'ALL') return true;
+        return (item.bulan || '').trim().toLowerCase() === filterBulanNilai.trim().toLowerCase();
+      });
+
       const totalExpected = guruMapelList.length;
 
       if (totalExpected > 0) {
         const uploadedSet = new Set(
-          allNilaiData.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
+          filteredNilaiData.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
         );
         let fulfilledCount = 0;
         guruMapelList.forEach((gm: any) => {
@@ -134,7 +144,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
 
   useEffect(() => {
     fetchDashboardData();
-  }, [selectedDate]);
+  }, [selectedDate, filterBulanNilai]); // Refresh otomatis saat filter bulan diganti manual
 
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
@@ -215,34 +225,68 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </p>
         </div>
 
-        {/* KARTU 3: PROGRES PENGISIAN NILAI (Klik untuk navigasi ke Rekap Nilai) */}
+        {/* KARTU 3: PROGRES PENGISIAN NILAI (DILENGKAPI FILTER BULAN MANUAL) */}
         <div 
-          onClick={() => {
-            if (onNavigateToNilai) {
-              onNavigateToNilai();
-            }
-          }}
-          className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
-          title="Klik untuk membuka halaman Rekapitulasi Nilai"
+          className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between group"
         >
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-1.5">
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider group-hover:text-emerald-600 transition-colors">Progres Pengisian Nilai</p>
-                <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Buka Rekap</span>
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Progres Pengisian Nilai</p>
+                {/* DROPDOWN FILTER BULAN MANUAL LANGSUNG DI CARD */}
+                <select 
+                  value={filterBulanNilai}
+                  onChange={(e) => setFilterBulanNilai(e.target.value)}
+                  className="px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg outline-none cursor-pointer"
+                  title="Pilih Bulan Penilaian"
+                >
+                  <option value="ALL">Semua Bulan</option>
+                  <option value="Januari">Januari</option>
+                  <option value="Februari">Februari</option>
+                  <option value="Maret">Maret</option>
+                  <option value="April">April</option>
+                  <option value="Mei">Mei</option>
+                  <option value="Juni">Juni</option>
+                  <option value="Juli">Juli</option>
+                  <option value="Agustus">Agustus</option>
+                  <option value="September">September</option>
+                  <option value="Oktober">Oktober</option>
+                  <option value="November">November</option>
+                  <option value="Desember">Desember</option>
+                </select>
               </div>
-              <h3 className="text-3xl font-black text-emerald-600 mt-1 flex items-baseline gap-2">
-                {nilaiProgressStats.persentase}%
-                <span className="text-xs font-bold text-slate-500">Selesai</span>
-              </h3>
+
+              {/* Klik angka/judul untuk langsung ke halaman rekap nilai */}
+              <div 
+                onClick={() => { if (onNavigateToNilai) onNavigateToNilai(); }}
+                className="cursor-pointer group-hover:opacity-80 transition-opacity"
+                title="Klik untuk membuka Rekapitulasi Nilai"
+              >
+                <h3 className="text-3xl font-black text-emerald-600 mt-1 flex items-baseline gap-2">
+                  {nilaiProgressStats.persentase}%
+                  <span className="text-xs font-bold text-slate-500">Selesai</span>
+                </h3>
+              </div>
             </div>
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-100 transition-colors">
+
+            <div 
+              onClick={() => { if (onNavigateToNilai) onNavigateToNilai(); }}
+              className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl cursor-pointer hover:bg-emerald-100 transition-colors"
+              title="Buka Halaman Rekap"
+            >
               <Award size={22} />
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100">
-            Terpenuhi {nilaiProgressStats.terpenuhi} dari {nilaiProgressStats.totalTarget} penugasan kelas mapel
-          </p>
+
+          <div className="flex items-center justify-between text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100">
+            <span>Terpenuhi <b>{nilaiProgressStats.terpenuhi}</b> dari <b>{nilaiProgressStats.totalTarget}</b> tugas</span>
+            <button 
+              onClick={() => { if (onNavigateToNilai) onNavigateToNilai(); }}
+              className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+            >
+              Buka Rekap →
+            </button>
+          </div>
         </div>
 
       </div>
@@ -296,7 +340,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-full border border-rose-200">
                           <Clock size={13} /> Belum Diinput
-                        </span>
+                        V</span>
                       )}
                     </td>
 
