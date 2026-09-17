@@ -23,7 +23,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Helper Paginasi agar data tidak terpotong batas 1000 baris Supabase
+      // Helper Paginasi identik dengan KelolaNilaiView
       const fetchWithPagination = async (queryBuilderFn: (start: number, end: number) => any) => {
         let allData: any[] = [];
         let start = 0;
@@ -91,40 +91,20 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. AMBIL DATA PROGRES NILAI MENGGUNAKAN PAGINASI (MENCAKUP KESELURUHAN DATA TANPA TERPOTONG)
+      // 5. AMBIL DATA PROGRES NILAI MENGGUNAKAN PAGINASI DAN LOGIKA KELOLANILAIVIEW
       try {
         const [rNilai, rGuruMapel] = await Promise.all([
-          fetchWithPagination((s, e) => supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan, created_at, tanggal').range(s, e)),
+          fetchWithPagination((s, e) => supabase.from('nilai').select('*').range(s, e)),
           supabase.from('guru_mapel').select('*')
         ]);
 
         const allNilaiData = rNilai.data || [];
         const guruMapelList = rGuruMapel.data || [];
 
-        // Filter data nilai berdasarkan pilihan dropdown manual (persis seperti KelolaNilaiView)
+        // Filter data nilai persis seperti logika filteredData di KelolaNilaiView
         const filteredNilaiData = allNilaiData.filter((item: any) => {
-          if (filterBulanNilai === 'ALL') return true;
-          
-          const bulanCol = (item.bulan || '').trim().toLowerCase();
-          const targetBulan = filterBulanNilai.trim().toLowerCase();
-          
-          const matchBulan = bulanCol === targetBulan;
-          
-          let matchTanggal = false;
-          const tglStr = item.created_at || item.tanggal || '';
-          if (tglStr) {
-            const monthMap: Record<string, string> = {
-              'januari': '01', 'februari': '02', 'maret': '03', 'april': '04',
-              'mei': '05', 'juni': '06', 'juli': '07', 'agustus': '08',
-              'september': '09', 'oktober': '10', 'november': '11', 'desember': '12'
-            };
-            const targetMonthNum = monthMap[targetBulan];
-            if (targetMonthNum && tglStr.slice(5, 7) === targetMonthNum) {
-              matchTanggal = true;
-            }
-          }
-
-          return matchBulan || matchTanggal;
+          const bulanMatch = filterBulanNilai === 'ALL' || (item.bulan || '') === filterBulanNilai;
+          return bulanMatch;
         });
 
         const totalExpected = guruMapelList.length;
