@@ -11,7 +11,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
   
-  // State Progres Nilai (Dihitung mandiri berdasarkan bulan berjalan agar akurat sejak awal)
+  // State Progres Nilai (Disamakan menggunakan filter bulan aktif: getCurrentMonthName)
   const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
@@ -72,8 +72,8 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. Ambil Data Progres Nilai (Berdasarkan bulan aktif saat ini / getCurrentMonthName)
-      const currentMonthName = getCurrentMonthName(); // Contoh: "September"
+      // 5. AMBIL DATA PROGRS NILAI (DIFILTER BERDASARKAN BULAN BERJALAN SEPERTI KELOLANILAIVIEW)
+      const currentMonthName = getCurrentMonthName(); // Mengambil nama bulan aktif, misal "September"
       const [rNilai, rGuruMapel] = await Promise.all([
         supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan'),
         supabase.from('guru_mapel').select('*')
@@ -82,7 +82,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const allNilaiData = rNilai.data || [];
       const guruMapelList = rGuruMapel.data || [];
 
-      // Filter nilai berdasarkan bulan aktif (persis seperti di KelolaNilaiView)
+      // Filter data nilai hanya untuk bulan aktif saat ini (Sama persis dengan filterBulan default di KelolaNilaiView)
       const filteredNilaiByMonth = allNilaiData.filter((item: any) => {
         return (item.bulan || '').trim().toLowerCase() === currentMonthName.trim().toLowerCase();
       });
