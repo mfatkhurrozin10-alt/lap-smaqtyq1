@@ -1,6 +1,6 @@
 // src/views/DashboardPantauanView.tsx
 import { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase, getCurrentMonthName } from '../services/supabase';
 import { CheckCircle2, Clock, Eye, RefreshCw, AlertCircle, Award } from 'lucide-react';
 
 export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai }: any) {
@@ -11,7 +11,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
   
-  // State Khusus Progres Pengisian Nilai
+  // State Khusus Progres Pengisian Nilai (Bulan Berjalan, sama persis dengan KelolaNilaiView)
   const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
@@ -72,19 +72,27 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. Ambil Data Progres Nilai (Menghitung seluruh data nilai di database dicocokkan dengan guru_mapel)
+      // 5. Ambil Data Progres Nilai (Disamakan persis dengan KelolaNilaiView menggunakan getCurrentMonthName())
+      const currentMonthName = getCurrentMonthName(); // Contoh: "September"
+      
       const [rNilai, rGuruMapel] = await Promise.all([
-        supabase.from('nilai').select('guru_id, mapel_id, kelas'),
+        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan'),
         supabase.from('guru_mapel').select('*')
       ]);
 
       const allNilaiData = rNilai.data || [];
       const guruMapelList = rGuruMapel.data || [];
+      
+      // Filter nilai berdasarkan bulan aktif saat ini (sama persis dengan default KelolaNilaiView)
+      const filteredNilaiByMonth = allNilaiData.filter((item: any) => {
+        return (item.bulan || '').trim().toLowerCase() === currentMonthName.trim().toLowerCase();
+      });
+
       const totalExpected = guruMapelList.length;
 
       if (totalExpected > 0) {
         const uploadedSet = new Set(
-          allNilaiData.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
+          filteredNilaiByMonth.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
         );
         let fulfilledCount = 0;
         guruMapelList.forEach((gm: any) => {

@@ -82,7 +82,8 @@ export default function App() {
         return (
           <DashboardPantauanView 
             showNotification={showNotification} 
-            onNavigateToDivisi={handleNavigateToKegiatan} // Menggunakan fungsi navigasi yang sudah ada!
+            onNavigateToDivisi={handleNavigateToKegiatan} 
+            onNavigateToNilai={() => setActiveTab('rekap-penilaian')} // <- DITAMBAHKAN DI SINI
           />
         );
       
@@ -90,7 +91,7 @@ export default function App() {
         return (
           <LaporanIkuUnitView 
             showNotification={showNotification} 
-            onNavigateToKegiatan={handleNavigateToKegiatan} // <- DISISIPKAN DI SINI
+            onNavigateToKegiatan={handleNavigateToKegiatan} 
           />
         );
 
