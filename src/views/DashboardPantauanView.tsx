@@ -1,18 +1,15 @@
 // src/views/DashboardPantauanView.tsx
 import { useState, useEffect } from 'react';
-import { supabase, getCurrentMonthName } from '../services/supabase';
+import { supabase } from '../services/supabase';
 import { CheckCircle2, Clock, Eye, RefreshCw, AlertCircle, Award } from 'lucide-react';
 
-export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai }: any) {
+export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai, sharedNilaiProgress }: any) {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   
   // State Statistik Atas
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
-  
-  // State Khusus Progres Pengisian Nilai (Bulan Berjalan, sama persis dengan KelolaNilaiView)
-  const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
   const [pantauanRows, setPantauanRows] = useState<any[]>([]);
@@ -72,47 +69,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. Ambil Data Progres Nilai (Disamakan persis dengan KelolaNilaiView menggunakan getCurrentMonthName())
-      const currentMonthName = getCurrentMonthName(); // Contoh: "September"
-      
-      const [rNilai, rGuruMapel] = await Promise.all([
-        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan'),
-        supabase.from('guru_mapel').select('*')
-      ]);
-
-      const allNilaiData = rNilai.data || [];
-      const guruMapelList = rGuruMapel.data || [];
-      
-      // Filter nilai berdasarkan bulan aktif saat ini (sama persis dengan default KelolaNilaiView)
-      const filteredNilaiByMonth = allNilaiData.filter((item: any) => {
-        return (item.bulan || '').trim().toLowerCase() === currentMonthName.trim().toLowerCase();
-      });
-
-      const totalExpected = guruMapelList.length;
-
-      if (totalExpected > 0) {
-        const uploadedSet = new Set(
-          filteredNilaiByMonth.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
-        );
-        let fulfilledCount = 0;
-        guruMapelList.forEach((gm: any) => {
-          const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
-          if (uploadedSet.has(key)) {
-            fulfilledCount++;
-          }
-        });
-
-        const pct = ((fulfilledCount / totalExpected) * 100).toFixed(1);
-        setNilaiProgressStats({
-          persentase: pct,
-          terpenuhi: fulfilledCount,
-          totalTarget: totalExpected
-        });
-      } else {
-        setNilaiProgressStats({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
-      }
-
-      // 6. Ambil Master Program Kegiatan Harian dari Semua Divisi untuk Tabel Pantauan
+      // 5. Ambil Master Program Kegiatan Harian dari Semua Divisi untuk Tabel Pantauan
       const { data: progList } = await supabase.from('program_kegiatan').select('*, divisi(id, nama_divisi)');
       const harianPrograms = (progList || []).filter((p: any) => p.timeframe?.toLowerCase() === 'harian');
 
@@ -240,7 +197,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
                 <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Buka Rekap</span>
               </div>
               <h3 className="text-3xl font-black text-emerald-600 mt-1 flex items-baseline gap-2">
-                {nilaiProgressStats.persentase}%
+                {sharedNilaiProgress?.persentase || '0.0'}%
                 <span className="text-xs font-bold text-slate-500">Selesai</span>
               </h3>
             </div>
@@ -249,7 +206,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
             </div>
           </div>
           <p className="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100">
-            Terpenuhi {nilaiProgressStats.terpenuhi} dari {nilaiProgressStats.totalTarget} penugasan kelas mapel
+            Terpenuhi {sharedNilaiProgress?.terpenuhi || 0} dari {sharedNilaiProgress?.totalTarget || 0} penugasan kelas mapel
           </p>
         </div>
 

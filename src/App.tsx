@@ -25,7 +25,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard-pantauan');
   const [notification, setNotification] = useState({ message: '', type: '' });
   
-  // STATE BARU: Untuk menyimpan ID program dan settingan tab saat diklik dari Laporan
+  // STATE: Untuk menampung data progres nilai yang dikirim dari KelolaNilaiView
+  const [sharedNilaiProgress, setSharedNilaiProgress] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
+
   const [navParams, setNavParams] = useState<any>(null);
 
   const showNotification = (message: string, type: string) => {
@@ -39,22 +41,18 @@ export default function App() {
     role: 'admin'
   };
 
-  // Fungsi baru: Menangani pergantian tab dari sidebar agar mereset navParams
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
-    setNavParams(null); // Reset parameter saat klik menu reguler di sidebar
+    setNavParams(null);
   };
 
-  // Fungsi baru: Menangkap sinyal klik dari tabel Laporan IKU
   const handleNavigateToKegiatan = (params: any) => {
-    // 1. Simpan pengaturan untuk View Divisi
     setNavParams({
       initialProgramId: params.programId,
       initialTimeframe: params.timeframe,
-      initialTab: 'riwayat' // Paksa langsung ke tab riwayat
+      initialTab: 'riwayat'
     });
     
-    // 2. Baca nama divisi dari parameter, lalu arahkan ke activeTab yang tepat
     const divName = (params.namaDivisi || '').toLowerCase();
     
     if (divName.includes('kepala sekolah')) {
@@ -83,7 +81,8 @@ export default function App() {
           <DashboardPantauanView 
             showNotification={showNotification} 
             onNavigateToDivisi={handleNavigateToKegiatan} 
-            onNavigateToNilai={() => setActiveTab('rekap-penilaian')} // <- DITAMBAHKAN DI SINI
+            onNavigateToNilai={() => setActiveTab('rekap-penilaian')}
+            sharedNilaiProgress={sharedNilaiProgress}
           />
         );
       
@@ -96,7 +95,13 @@ export default function App() {
         );
 
       case 'rekap-penilaian':
-        return <KelolaNilaiView user={currentUser} showNotification={showNotification} />;
+        return (
+          <KelolaNilaiView 
+            user={currentUser} 
+            showNotification={showNotification} 
+            onUpdateProgress={(prog: any) => setSharedNilaiProgress(prog)}
+          />
+        );
       
       case 'presensi-absensi':
         return <SistemAbsensiView user={currentUser} showNotification={showNotification} />;
@@ -110,7 +115,6 @@ export default function App() {
       case 'kelola-divisi':
         return <KelolaDivisiView showNotification={showNotification} />;
 
-      // DIVISI KERJA (Tiap View ditambahkan props 'initialTab', 'initialTimeframe', dan 'initialProgramId')
       case 'divisi-kepala-sekolah':
         return <DivisiKepalaSekolahView showNotification={showNotification} {...navParams} />;
 
@@ -151,7 +155,6 @@ export default function App() {
         onClose={() => setNotification({ message: '', type: '' })} 
       />
       
-      {/* Oper handleTabChange sebagai ganti setActiveTab agar state kereset saat pindah menu reguler */}
       <DashboardLayout activeTab={activeTab} setActiveTab={handleTabChange}>
         {renderContent()}
       </DashboardLayout>

@@ -7,7 +7,7 @@ import { ConfirmModal } from '../components/UIComponents';
 // Import Komponen Anak
 import NilaiDashboardStats from './Nilai/NilaiDashboardStats';
 
-export default function KelolaNilaiView({ showNotification, user }: any) {
+export default function KelolaNilaiView({ showNotification, user, onUpdateProgress }: any) {
   const isTeacherRole = user?.role === 'guru' || user?.role === 'wali_kelas';
 
   const [data, setData] = useState<any[]>([]);
@@ -221,6 +221,24 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       teacherProgressList 
     };
   }, [filteredData, options.guruMapel, options.guru, options.mapel, filterGuru, filterMapel, filterKelas]);
+
+  // Sinkronisasi data progres ke App.tsx agar DashboardPantauanView sama persis
+  useEffect(() => {
+    if (onUpdateProgress && stats) {
+      let totalTarget = 0;
+      let terpenuhi = 0;
+      (stats.teacherProgressList || []).forEach((t: any) => {
+        totalTarget += t.totalTugas;
+        terpenuhi += t.selesaiTugas;
+      });
+
+      onUpdateProgress({
+        persentase: stats.progressPct || '0.0',
+        terpenuhi: terpenuhi,
+        totalTarget: totalTarget > 0 ? totalTarget : (options?.guruMapel?.length || 0)
+      });
+    }
+  }, [stats, options, onUpdateProgress]);
 
   const groupedByMapelAndKelas = useMemo(() => {
     const groups: { [key: string]: any[] } = {};
