@@ -18,8 +18,9 @@ export default function NilaiDashboardStats({
 
   const [selectedModalData, setSelectedModalData] = useState<any | null>(null);
   
-  // State untuk menampilkan Pop-up Progres Guru
+  // State untuk Pop-up Progres Guru & Expand Card Guru
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [expandedTeacherName, setExpandedTeacherName] = useState<string | null>(null);
 
   // Helper untuk mendapatkan Nama Wali Kelas berdasarkan Nama Kelas
   const getWaliKelas = (kelasName: string) => {
@@ -152,9 +153,9 @@ export default function NilaiDashboardStats({
           </div>
         </div>
 
-        {/* Kotak Progres Pengisian (Bisa Diklik) */}
+        {/* Kotak Progres Pengisian */}
         <div 
-          onClick={() => setShowProgressModal(true)}
+          onClick={() => { setExpandedTeacherName(null); setShowProgressModal(true); }}
           className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
           title="Klik untuk melihat rincian progres masing-masing guru"
         >
@@ -364,7 +365,7 @@ export default function NilaiDashboardStats({
         )}
       </div>
 
-      {/* POP-UP / MODAL RINCIAN PROGRES MASING-MASING GURU */}
+      {/* POP-UP / MODAL RINCIAN PROGRES MASING-MASING GURU (DENGAN LIST KELAS SUDAH/BELUM DI-UPLOAD) */}
       {showProgressModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
@@ -377,12 +378,12 @@ export default function NilaiDashboardStats({
                 <div>
                   <h2 className="text-sm sm:text-base font-black text-slate-900">Rincian Progres Pengisian Nilai Per Guru</h2>
                   <p className="text-[10px] sm:text-xs font-medium text-slate-500 mt-0.5">
-                    Persentase penyelesaian tugas asesmen berdasarkan penugasan kelas & mapel aktif.
+                    Klik pada nama guru untuk melihat rincian kelas & mapel yang sudah dan belum di-upload.
                   </p>
                 </div>
               </div>
               <button 
-                onClick={() => setShowProgressModal(false)}
+                onClick={() => { setShowProgressModal(false); setExpandedTeacherName(null); }}
                 className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
               >
                 <Icons.X />
@@ -394,26 +395,78 @@ export default function NilaiDashboardStats({
                 <div className="py-12 text-center text-slate-400 text-xs">Tidak ada data penugasan guru ditemukan pada filter ini.</div>
               ) : (
                 stats.teacherProgressList.map((t: any, idx: number) => {
-                  const isComplete = parseFloat(t.pct) >= 100;
+                  const pctVal = parseFloat(t.pct);
+                  const isComplete = pctVal >= 100;
+                  const isUnder50 = pctVal < 50;
+                  const isExpanded = expandedTeacherName === t.nama;
+
+                  // Warna Badge & Bar Progres dinamis (< 50% Merah, 50-99% Kuning, 100% Hijau)
+                  const badgeColor = isComplete 
+                    ? 'bg-emerald-100 text-emerald-700' 
+                    : isUnder50 
+                      ? 'bg-rose-100 text-rose-700' 
+                      : 'bg-amber-100 text-amber-700';
+
+                  const barColor = isComplete 
+                    ? 'bg-emerald-500' 
+                    : isUnder50 
+                      ? 'bg-rose-500' 
+                      : 'bg-amber-500';
+
                   return (
-                    <div key={idx} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-800">{t.nama}</span>
-                        <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${isComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    <div 
+                      key={idx} 
+                      className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex flex-col gap-2 transition-all"
+                    >
+                      {/* Bagian Header Guru (Bisa diklik untuk expand) */}
+                      <div 
+                        onClick={() => setExpandedTeacherName(isExpanded ? null : t.nama)}
+                        className="flex items-center justify-between cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-800 hover:text-indigo-600 transition-colors">{t.nama}</span>
+                          <span className="text-[10px] text-indigo-500 font-semibold underline">{isExpanded ? 'Sembunyikan Rincian' : 'Lihat Daftar Kelas ▼'}</span>
+                        </div>
+                        <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${badgeColor}`}>
                           {t.pct}% Selesai
                         </span>
                       </div>
+
                       <div className="flex items-center justify-between text-[11px] text-slate-500">
                         <span>Tugas Terlaksana: <b>{t.selesaiTugas}</b> dari <b>{t.totalTugas}</b> penugasan kelas mapel</span>
-                        <span>{isComplete ? '✨ Sempurna' : '⚠️ Belum Lengkap'}</span>
+                        <span>{isComplete ? '✨ Sempurna' : isUnder50 ? '🚨 Belum Banyak Diisi' : '⚠️ Belum Lengkap'}</span>
                       </div>
+
                       {/* Bar Progres Visual */}
                       <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full rounded-full transition-all duration-500 ${isComplete ? 'bg-emerald-500' : 'bg-indigo-500'}`}
-                          style={{ width: `${Math.min(100, parseFloat(t.pct))}%` }}
+                          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                          style={{ width: `${Math.min(100, pctVal)}%` }}
                         ></div>
                       </div>
+
+                      {/* Bagian List Rincian Kelas & Mapel (Muncul saat diklik) */}
+                      {isExpanded && (
+                        <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5 animate-in fade-in duration-200">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Daftar Penugasan Kelas & Mapel:</p>
+                          {t.listPekerjaan.map((job: any, jIdx: number) => (
+                            <div key={jIdx} className="flex items-center justify-between px-3 py-1.5 bg-white border border-slate-100 rounded-lg text-xs">
+                              <span className="font-medium text-slate-700">
+                                <b>{job.mapelNama}</b> — Kelas {job.kelasName}
+                              </span>
+                              {job.isUploaded ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  ✓ Sudah Di-upload
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                  ✕ Belum Di-upload
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -423,7 +476,7 @@ export default function NilaiDashboardStats({
             <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
               <span className="text-[11px] text-slate-500 font-medium">Total Pengajar Terdata: <b>{stats?.teacherProgressList?.length || 0}</b> guru</span>
               <button 
-                onClick={() => setShowProgressModal(false)}
+                onClick={() => { setShowProgressModal(false); setExpandedTeacherName(null); }}
                 className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
               >
                 Tutup

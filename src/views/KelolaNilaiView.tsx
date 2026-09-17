@@ -117,7 +117,7 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
     });
   }, [data, search, filterMapel, filterKelas, filterGuru, filterBulan]);
 
-  // Kalkulasi statistik, rata-rata, progres total, dan rincian progres per guru
+  // Kalkulasi statistik dan rincian daftar tugas sudah/belum per guru
   const stats = useMemo(() => {
     if (filteredData.length === 0 && options.guruMapel.length === 0) {
       return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0, progressPct: '0.0', teacherProgressList: [] };
@@ -163,27 +163,45 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       progressPct = '0.0';
     }
 
-    // Kalkruktur Rincian Progress per Guru untuk Pop-up
-    const teacherMap: Record<string, { nama: string; totalTugas: number; selesaiTugas: number }> = {};
+    // Map detail rincian per guru (list kelas & mapel sudah/belum)
+    const teacherMap: Record<string, any> = {};
     
-    // Masukkan guru dari options.guru atau dari targetGuruMapel
     options.guru.forEach((g: any) => {
       if (filterGuru === 'ALL' || g.id === filterGuru) {
-        teacherMap[g.id] = { nama: g.nama, totalTugas: 0, selesaiTugas: 0 };
+        teacherMap[g.id] = { 
+          nama: g.nama, 
+          totalTugas: 0, 
+          selesaiTugas: 0, 
+          listPekerjaan: [] 
+        };
       }
     });
 
     targetGuruMapel.forEach((gm: any) => {
       if (!teacherMap[gm.guru_id]) {
         const foundG = options.guru.find((g: any) => g.id === gm.guru_id);
-        teacherMap[gm.guru_id] = { nama: foundG ? foundG.nama : 'Guru Lain', totalTugas: 0, selesaiTugas: 0 };
+        teacherMap[gm.guru_id] = { 
+          nama: foundG ? foundG.nama : 'Guru Lain', 
+          totalTugas: 0, 
+          selesaiTugas: 0, 
+          listPekerjaan: [] 
+        };
       }
+
       teacherMap[gm.guru_id].totalTugas++;
       
       const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
-      if (uploadedSet.has(key)) {
+      const isUploaded = uploadedSet.has(key);
+      if (isUploaded) {
         teacherMap[gm.guru_id].selesaiTugas++;
       }
+
+      const mapelObj = options.mapel.find((m: any) => m.id === gm.mapel_id);
+      teacherMap[gm.guru_id].listPekerjaan.push({
+        mapelNama: mapelObj ? mapelObj.nama_mapel : 'Mata Pelajaran',
+        kelasName: gm.kelas || '-',
+        isUploaded
+      });
     });
 
     const teacherProgressList = Object.values(teacherMap)
@@ -202,7 +220,7 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       progressPct,
       teacherProgressList 
     };
-  }, [filteredData, options.guruMapel, options.guru, filterGuru, filterMapel, filterKelas]);
+  }, [filteredData, options.guruMapel, options.guru, options.mapel, filterGuru, filterMapel, filterKelas]);
 
   const groupedByMapelAndKelas = useMemo(() => {
     const groups: { [key: string]: any[] } = {};
