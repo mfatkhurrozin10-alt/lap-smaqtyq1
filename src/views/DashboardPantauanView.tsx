@@ -11,7 +11,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
   
-  // State Khusus Progres Pengisian Nilai (Berdasarkan Bulan Berjalan)
+  // State Khusus Progres Pengisian Nilai (Disamakan persis dengan KelolaNilaiView)
   const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
@@ -72,37 +72,42 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. Ambil Data Progres Nilai (Disamakan dengan KelolaNilaiView menggunakan Filter Bulan Berjalan)
+      // 5. Ambil Data Progres Nilai (Menggunakan Logika & Filter Bulan yang SAMA PERSIS dengan KelolaNilaiView)
       const currentMonthName = getCurrentMonthName(); // Contoh: "September"
+      
       const [rNilai, rGuruMapel] = await Promise.all([
         supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan, created_at, tanggal'),
         supabase.from('guru_mapel').select('*')
       ]);
 
-      // Filter nilai yang hanya masuk pada bulan aktif saat ini (persis seperti di rekap nilai)
-      const nilaiBulanList = (rNilai.data || []).filter((n: any) => {
-        const matchBulanCol = (n.bulan || '').trim().toLowerCase() === currentMonthName.toLowerCase();
-        return matchBulanCol;
+      const allNilaiData = rNilai.data || [];
+      const guruMapelList = rGuruMapel.data || [];
+
+      // Filter berdasarkan bulan aktif saat ini (persis seperti default state KelolaNilaiView)
+      const filteredNilaiByMonth = allNilaiData.filter((item: any) => {
+        return (item.bulan || '') === currentMonthName;
       });
 
-      const guruMapelList = rGuruMapel.data || [];
-      const totalTargetNilai = guruMapelList.length;
+      const totalExpected = guruMapelList.length;
+      let fulfilledCount = 0;
 
-      if (totalTargetNilai > 0) {
+      if (totalExpected > 0) {
         const uploadedSet = new Set(
-          nilaiBulanList.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
+          filteredNilaiByMonth.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
         );
-        let fulfilledCount = 0;
+
         guruMapelList.forEach((gm: any) => {
           const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
-          if (uploadedSet.has(key)) fulfilledCount++;
+          if (uploadedSet.has(key)) {
+            fulfilledCount++;
+          }
         });
 
-        const pct = ((fulfilledCount / totalTargetNilai) * 100).toFixed(1);
+        const pct = ((fulfilledCount / totalExpected) * 100).toFixed(1);
         setNilaiProgressStats({
           persentase: pct,
           terpenuhi: fulfilledCount,
-          totalTarget: totalTargetNilai
+          totalTarget: totalExpected
         });
       } else {
         setNilaiProgressStats({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
@@ -219,7 +224,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </p>
         </div>
 
-        {/* KARTU 3: PROGRES PENGISIAN NILAI (Klik untuk navigasi ke Rekap Nilai) */}
+        {/* KARTU 3: PROGRES PENGISIAN NILAI (Klik untuk navigasi ke halaman rekap penilaian) */}
         <div 
           onClick={() => {
             if (onNavigateToNilai) {
@@ -305,7 +310,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
                     </td>
 
                     <td className="px-6 py-4 text-center font-black text-sm">
-                      {row.isSudahItem = row.isSudahInput ? (
+                      {row.isSudahInput ? (
                         <span className="text-blue-600">{row.skorPersen}%</span>
                       ) : (
                         <span className="text-slate-300">-</span>
