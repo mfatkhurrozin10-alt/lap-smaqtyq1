@@ -232,7 +232,7 @@ export default function RekapAbsensiSholatGlobalView({ showNotification }: any) 
                 {daysInMonth.map(({ day, isSunday }) => (
                   <th 
                     key={day} 
-                    className={`px-1 py-2 text-center w-6 border-l border-slate-200 text-[10px] ${isSunday ? 'bg-rose-100 text-rose-700 font-black' : ''}`}
+                    className={`px-1 py-2 text-center w-6 border-l border-slate-200 text-[10px] ${isSunday ? 'bg-rose-200 text-rose-800 font-black' : ''}`}
                   >
                     {day}
                   </th>
@@ -265,15 +265,15 @@ export default function RekapAbsensiSholatGlobalView({ showNotification }: any) 
                       {daysInMonth.map(({ day, isSunday }) => {
                         const item = absensiMap[`${guru.id}_${day}`];
                         
-                        // Jika belum ada data absensi yang diinput pada tanggal tersebut
+                        // Jika hari Minggu (Libur) dan belum ada data
                         if (!item) {
                           return (
-                            <td key={day} className={`p-0.5 border-l border-slate-100 text-center ${isSunday ? 'bg-rose-50/70' : ''}`}>
+                            <td key={day} className={`p-0.5 border-l border-slate-100 text-center ${isSunday ? 'bg-rose-100/70' : ''}`}>
                               <div 
-                                title={`Tanggal ${day} ${selectedBulan}: Belum di-input`}
-                                className={`w-5 h-5 mx-auto rounded flex items-center justify-center text-[9px] cursor-help ${isSunday ? 'bg-rose-200 text-rose-500 font-bold' : 'bg-slate-200 text-slate-400'}`}
+                                title={`Hari Minggu (Libur) - ${day} ${selectedBulan}`}
+                                className={`w-5 h-5 mx-auto rounded flex items-center justify-center text-[9px] cursor-help ${isSunday ? 'bg-transparent text-transparent' : 'bg-slate-200 text-slate-400'}`}
                               >
-                                {isSunday ? 'LIBUR' : '-'}
+                                {isSunday ? '' : '-'}
                               </div>
                             </td>
                           );
@@ -281,7 +281,7 @@ export default function RekapAbsensiSholatGlobalView({ showNotification }: any) 
 
                         const status = item.status_kehadiran;
                         let label = 'H';
-                        let bg = isSunday ? 'bg-rose-200 text-rose-700 font-bold' : 'bg-emerald-600 text-white font-bold'; 
+                        let bg = isSunday ? 'bg-rose-100/70 text-transparent' : 'bg-emerald-600 text-white font-bold'; 
 
                         if (status === 'Sakit') { 
                           label = 'S'; 
@@ -312,13 +312,13 @@ export default function RekapAbsensiSholatGlobalView({ showNotification }: any) 
                         return (
                           <td 
                             key={day} 
-                            className={`p-0.5 border-l border-slate-100 text-center ${isSunday ? 'bg-rose-50/70' : ''}`}
+                            className={`p-0.5 border-l border-slate-100 text-center ${isSunday ? 'bg-rose-100/70' : ''}`}
                           >
                             <div 
                               title={tooltipText}
-                              className={`w-5 h-5 mx-auto rounded flex items-center justify-center text-[9px] cursor-help ${bg}`}
+                              className={`w-5 h-5 mx-auto rounded flex items-center justify-center text-[9px] cursor-help ${isSunday ? 'bg-transparent text-transparent' : bg}`}
                             >
-                              {label}
+                              {isSunday ? '' : label}
                             </div>
                           </td>
                         );
