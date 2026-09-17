@@ -1,5 +1,5 @@
 // src/views/KelolaNilaiView.tsx
-import { useState, useEffect, useMemo } from 'react'; // Menghapus React untuk menghindari error Vercel
+import { useState, useEffect, useMemo } from 'react';
 import { supabase, getCurrentMonthName } from '../services/supabase';
 import { Icons } from '../Icons';
 import { ConfirmModal } from '../components/UIComponents';
@@ -42,11 +42,11 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       };
 
       const [rGuru, rSiswa, rUjian, rMapel, rGuruMapel, rNilai] = await Promise.all([
-        supabase.from('guru').select('id, nama, niy').order('nama'),
+        supabase.from('guru').select('*').order('nama'), // Memuat semua kolom termasuk role dan kelas_binaan
         fetchWithPagination((s, e) => supabase.from('siswa').select('id, nama, nis, kelas').order('nama').range(s, e)),
         supabase.from('ujian').select('id, nama_ujian, kode').order('nama_ujian'),
         supabase.from('mapel').select('id, nama_mapel, kode, kkm').order('nama_mapel'),
-        supabase.from('guru_mapel').select('*'),
+        fetchWithPagination((s, e) => supabase.from('guru_mapel').select('*').range(s, e)),
         fetchWithPagination((s, e) => supabase.from('nilai')
           .select('*, guru(nama, id), siswa(nama, nis), ujian(nama_ujian), mapel(nama_mapel, kkm)')
           .order('created_at', { ascending: false })
@@ -105,7 +105,6 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
     }
   };
 
-  // 1. filteredData dideklarasikan lebih dulu agar bisa digunakan oleh stats
   const filteredData = useMemo(() => {
     return data.filter((item: any) => {
       const nameMatch = (item.siswa?.nama || '').toLowerCase().includes(search.toLowerCase()) || (item.siswa?.nis || '').toLowerCase().includes(search.toLowerCase());
@@ -118,9 +117,10 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
     });
   }, [data, search, filterMapel, filterKelas, filterGuru, filterBulan]);
 
-  // 2. stats menggunakan sumber dari filteredData
+  // Kalkulasi Statistik & Progres Pengisian Nilai Berdasarkan Filter Aktif dan tabel guru_mapel[cite: 2]
   const stats = useMemo(() => {
-    if (filteredData.length === 0) return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0 };
+    if (filteredData.length === 0) return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0, progressPct: '0.0' };
+    
     const totalScore = filteredData.reduce((acc, curr) => acc + (curr.nilai || 0), 0);
     const avgScore = (totalScore / filteredData.length).toFixed(1);
     
@@ -132,8 +132,49 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       else remedial++;
     });
 
-    return { totalRecords: filteredData.length, avgScore, tuntasCount: tuntas, remedialCount: remedial };
-  }, [filteredData]);
+    // --- Perhitungan Progres Pengisian Berdasarkan guru_mapel dan Filter Aktif ---
+    let targetGuruMapel = options.guruMapel;
+    
+    if (filterGuru !== 'ALL') {
+      targetGuruMapel = targetGuruMapel.filter((gm: any) => gm.guru_id === filterGuru);
+    }
+    if (filterMapel !== 'ALL') {
+      targetGuruMapel = targetGuruMapel.filter((gm: any) => gm.mapel_id === filterMapel);
+    }
+    if (filterKelas !== 'ALL') {
+      targetGuruMapel = targetGuruMapel.filter((gm: any) => (gm.kelas || '').trim() === filterKelas.trim());
+    }
+
+    const totalExpectedAssignments = targetGuruMapel.length;
+    let progressPct = '100.0';
+
+    if (totalExpectedAssignments > 0) {
+      // Unik kombinasi guru, mapel, dan kelas yang sudah mengunggah nilai pada filter bulan aktif
+      const uploadedAssignments = new Set(
+        filteredData.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
+      );
+      
+      let fulfilledCount = 0;
+      targetGuruMapel.forEach((gm: any) => {
+        const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
+        if (uploadedAssignments.has(key)) {
+          fulfilledCount++;
+        }
+      });
+
+      progressPct = ((fulfilledCount / totalExpectedAssignments) * 100).toFixed(1);
+    } else if (filteredData.length === 0) {
+      progressPct = '0.0';
+    }
+
+    return { 
+      totalRecords: filteredData.length, 
+      avgScore, 
+      tuntasCount: tuntas, 
+      remedialCount: remedial,
+      progressPct 
+    };
+  }, [filteredData, options.guruMapel, filterGuru, filterMapel, filterKelas]);
 
   const groupedByMapelAndKelas = useMemo(() => {
     const groups: { [key: string]: any[] } = {};
