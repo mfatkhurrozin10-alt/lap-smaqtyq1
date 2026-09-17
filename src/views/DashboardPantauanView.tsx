@@ -75,19 +75,39 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. AMBIL DATA PROGRES NILAI DENGAN FILTER MANUAL (Mengikuti state filterBulanNilai)
+      // 5. AMBIL DATA PROGRES NILAI DENGAN PENCOCOKAN GANDA (BULAN & TANGGAL)
       const [rNilai, rGuruMapel] = await Promise.all([
-        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan'),
+        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan, created_at, tanggal'),
         supabase.from('guru_mapel').select('*')
       ]);
 
       const allNilaiData = rNilai.data || [];
       const guruMapelList = rGuruMapel.data || [];
 
-      // Filter data nilai berdasarkan pilihan dropdown manual (ALL atau Nama Bulan)
+      // Filter data nilai berdasarkan pilihan dropdown manual dengan pencocokan ganda
       const filteredNilaiData = allNilaiData.filter((item: any) => {
         if (filterBulanNilai === 'ALL') return true;
-        return (item.bulan || '').trim().toLowerCase() === filterBulanNilai.trim().toLowerCase();
+        
+        const bulanCol = (item.bulan || '').trim().toLowerCase();
+        const targetBulan = filterBulanNilai.trim().toLowerCase();
+        
+        const matchBulan = bulanCol === targetBulan;
+        
+        let matchTanggal = false;
+        const tglStr = item.created_at || item.tanggal || '';
+        if (tglStr) {
+          const monthMap: Record<string, string> = {
+            'januari': '01', 'februari': '02', 'maret': '03', 'april': '04',
+            'mei': '05', 'juni': '06', 'juli': '07', 'agustus': '08',
+            'september': '09', 'oktober': '10', 'november': '11', 'desember': '12'
+          };
+          const targetMonthNum = monthMap[targetBulan];
+          if (targetMonthNum && tglStr.slice(5, 7) === targetMonthNum) {
+            matchTanggal = true;
+          }
+        }
+
+        return matchBulan || matchTanggal;
       });
 
       const totalExpected = guruMapelList.length;
@@ -144,7 +164,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
 
   useEffect(() => {
     fetchDashboardData();
-  }, [selectedDate, filterBulanNilai]); // Refresh otomatis saat filter bulan diganti manual
+  }, [selectedDate, filterBulanNilai]);
 
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
@@ -233,7 +253,6 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Progres Pengisian Nilai</p>
-                {/* DROPDOWN FILTER BULAN MANUAL LANGSUNG DI CARD */}
                 <select 
                   value={filterBulanNilai}
                   onChange={(e) => setFilterBulanNilai(e.target.value)}
@@ -256,7 +275,6 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
                 </select>
               </div>
 
-              {/* Klik angka/judul untuk langsung ke halaman rekap nilai */}
               <div 
                 onClick={() => { if (onNavigateToNilai) onNavigateToNilai(); }}
                 className="cursor-pointer group-hover:opacity-80 transition-opacity"
@@ -340,7 +358,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-full border border-rose-200">
                           <Clock size={13} /> Belum Diinput
-                        V</span>
+                        </span>
                       )}
                     </td>
 
