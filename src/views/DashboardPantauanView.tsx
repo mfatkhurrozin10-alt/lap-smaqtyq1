@@ -75,63 +75,45 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. AMBIL DATA PROGRES NILAI DENGAN PENCOCOKAN GANDA (BULAN & TANGGAL)
-      const [rNilai, rGuruMapel] = await Promise.all([
-        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan, created_at, tanggal'),
-        supabase.from('guru_mapel').select('*')
-      ]);
+      // 5. AMBIL DATA PROGRES NILAI DENGAN AMAN (TRY-CATCH TERISOLASI)
+      try {
+        const [rNilai, rGuruMapel] = await Promise.all([
+          supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan'),
+          supabase.from('guru_mapel').select('*')
+        ]);
 
-      const allNilaiData = rNilai.data || [];
-      const guruMapelList = rGuruMapel.data || [];
+        const allNilaiData = rNilai.data || [];
+        const guruMapelList = rGuruMapel.data || [];
 
-      // Filter data nilai berdasarkan pilihan dropdown manual dengan pencocokan ganda
-      const filteredNilaiData = allNilaiData.filter((item: any) => {
-        if (filterBulanNilai === 'ALL') return true;
-        
-        const bulanCol = (item.bulan || '').trim().toLowerCase();
-        const targetBulan = filterBulanNilai.trim().toLowerCase();
-        
-        const matchBulan = bulanCol === targetBulan;
-        
-        let matchTanggal = false;
-        const tglStr = item.created_at || item.tanggal || '';
-        if (tglStr) {
-          const monthMap: Record<string, string> = {
-            'januari': '01', 'februari': '02', 'maret': '03', 'april': '04',
-            'mei': '05', 'juni': '06', 'juli': '07', 'agustus': '08',
-            'september': '09', 'oktober': '10', 'november': '11', 'desember': '12'
-          };
-          const targetMonthNum = monthMap[targetBulan];
-          if (targetMonthNum && tglStr.slice(5, 7) === targetMonthNum) {
-            matchTanggal = true;
-          }
+        // Filter data nilai berdasarkan pilihan dropdown manual
+        const filteredNilaiData = allNilaiData.filter((item: any) => {
+          if (filterBulanNilai === 'ALL') return true;
+          return (item.bulan || '').trim().toLowerCase() === filterBulanNilai.trim().toLowerCase();
+        });
+
+        const totalExpected = guruMapelList.length;
+
+        if (totalExpected > 0) {
+          const uploadedSet = new Set(
+            filteredNilaiData.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
+          );
+          let fulfilledCount = 0;
+          guruMapelList.forEach((gm: any) => {
+            const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
+            if (uploadedSet.has(key)) {
+              fulfilledCount++;
+            }
+          });
+
+          const pct = ((fulfilledCount / totalExpected) * 100).toFixed(1);
+          setNilaiProgressStats({
+            persentase: pct,
+            terpenuhi: fulfilledCount,
+            totalTarget: totalExpected
+          });
         }
-
-        return matchBulan || matchTanggal;
-      });
-
-      const totalExpected = guruMapelList.length;
-
-      if (totalExpected > 0) {
-        const uploadedSet = new Set(
-          filteredNilaiData.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
-        );
-        let fulfilledCount = 0;
-        guruMapelList.forEach((gm: any) => {
-          const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
-          if (uploadedSet.has(key)) {
-            fulfilledCount++;
-          }
-        });
-
-        const pct = ((fulfilledCount / totalExpected) * 100).toFixed(1);
-        setNilaiProgressStats({
-          persentase: pct,
-          terpenuhi: fulfilledCount,
-          totalTarget: totalExpected
-        });
-      } else {
-        setNilaiProgressStats({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
+      } catch (nilaiErr) {
+        console.error("Gagal memuat statistik nilai:", nilaiErr);
       }
 
       // 6. Ambil Master Program Kegiatan Harian dari Semua Divisi untuk Tabel Pantauan
