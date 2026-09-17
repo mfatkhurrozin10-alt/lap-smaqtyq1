@@ -14,7 +14,7 @@ import {
   Archive,
   Award,
   ShieldCheck,
-  Library, // <-- Tambahkan icon Perpustakaan
+  Library, 
   Menu,
   X
 } from 'lucide-react';
@@ -115,7 +115,11 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
           <MenuItem id="dashboard-pantauan" icon={<LayoutDashboard size={20} />} label="Dashboard Pantauan" />
           <MenuItem id="laporan-iku" icon={<FileText size={20} />} label="Laporan IKU Unit" />
           <MenuItem id="rekap-penilaian" icon={<Users size={20} />} label="Rekap Penilaian" />
-          <MenuItem id="presensi-absensi" icon={<UserCheck size={20} />} label="Presensi & Absensi" />
+          
+          {/* Menu yang diubah & ditambahkan */}
+          <MenuItem id="presensi-absensi" icon={<UserCheck size={20} />} label="Presensi Siswa" />
+          <MenuItem id="rekap-global-guru" icon={<FileText size={20} />} label="Presensi Guru dan Tendik" />
+
           <MenuItem id="tabungan-santri" icon={<CreditCard size={20} />} label="Tabungan Santri (NFC)" />
           <MenuItem id="poin-santri" icon={<Star size={20} />} label="Poin Santri" />
           <MenuItem id="kelola-divisi" icon={<Settings size={20} />} label="Kelola Divisi, IKU & Program" />
@@ -132,8 +136,6 @@ export default function DashboardLayout({ activeTab, setActiveTab, children }: a
             <SubMenuItem id="divisi-sarpras" icon={<Archive size={18} />} label="Sarpras dan Bendahara" />
             <SubMenuItem id="divisi-bahasa" icon={<Award size={18} />} label="Bahasa & Prestasi" />
             <SubMenuItem id="divisi-tata-usaha" icon={<Briefcase size={18} />} label="Tata Usaha" />
-            
-            {/* MENU PERPUSTAKAAN DITAMBAHKAN DI BAWAH TATA USAHA */}
             <SubMenuItem id="divisi-perpustakaan" icon={<Library size={18} />} label="Perpustakaan" />
           </div>
         </div>

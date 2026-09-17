@@ -6,6 +6,7 @@ import { Notification } from './components/UIComponents';
 // Mengimpor View Utama & Divisi Kerja
 import KelolaNilaiView from './views/KelolaNilaiView';
 import SistemAbsensiView from './views/SistemAbsensiView'; 
+import RekapAbsensiSholatGlobalView from './views/RekapAbsensiSholatGlobalView'; // <-- Import Rekap Global Presensi Guru & Tendik
 import KelolaTabunganAdminView from './views/KelolaTabunganAdminView';
 import KelolaPoinAdminView from './views/KelolaPoinAdminView';
 import KelolaDivisiView from './views/KelolaDivisiView';
@@ -19,7 +20,7 @@ import DivisiHumasView from './views/DivisiHumasView';
 import DivisiSarprasView from './views/DivisiSarprasView';
 import DivisiBahasaView from './views/DivisiBahasaView';
 import DivisiTataUsahaView from './views/DivisiTataUsahaView';
-import DivisiPerpustakaanView from './views/DivisiPerpustakaanView'; // <-- Import View Perpustakaan
+import DivisiPerpustakaanView from './views/DivisiPerpustakaanView';
 import DashboardPantauanView from './views/DashboardPantauanView';
 
 export default function App() {
@@ -69,7 +70,7 @@ export default function App() {
     } else if (divName.includes('tata usaha') || divName.includes('tu')) {
       setActiveTab('divisi-tata-usaha');
     } else if (divName.includes('perpustakaan') || divName.includes('perpus')) {
-      setActiveTab('divisi-perpustakaan'); // <-- Mapping navigasi perpustakaan
+      setActiveTab('divisi-perpustakaan');
     } else {
       showNotification(`Menu untuk divisi "${params.namaDivisi}" belum dipetakan.`, 'error');
     }
@@ -107,6 +108,9 @@ export default function App() {
       case 'presensi-absensi':
         return <SistemAbsensiView user={currentUser} showNotification={showNotification} />;
 
+      case 'rekap-global-guru': // <-- Routing untuk menu Presensi Guru dan Tendik
+        return <RekapAbsensiSholatGlobalView showNotification={showNotification} />;
+
       case 'tabungan-santri':
         return <KelolaTabunganAdminView user={currentUser} showNotification={showNotification} />;
 
@@ -137,7 +141,7 @@ export default function App() {
       case 'divisi-tata-usaha':
         return <DivisiTataUsahaView showNotification={showNotification} {...navParams} />;
 
-      case 'divisi-perpustakaan': // <-- Render View Perpustakaan
+      case 'divisi-perpustakaan':
         return <DivisiPerpustakaanView showNotification={showNotification} {...navParams} />;
 
       default:
