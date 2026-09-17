@@ -25,7 +25,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard-pantauan');
   const [notification, setNotification] = useState({ message: '', type: '' });
   
-  // STATE: Untuk menampung data progres nilai yang dikirim dari KelolaNilaiView
+  // STATE BARU: Untuk menyimpan data progres nilai yang dikirim dari KelolaNilaiView
   const [sharedNilaiProgress, setSharedNilaiProgress] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   const [navParams, setNavParams] = useState<any>(null);
@@ -82,7 +82,7 @@ export default function App() {
             showNotification={showNotification} 
             onNavigateToDivisi={handleNavigateToKegiatan} 
             onNavigateToNilai={() => setActiveTab('rekap-penilaian')}
-            sharedNilaiProgress={sharedNilaiProgress}
+            sharedNilaiProgress={sharedNilaiProgress} // <- KIRIM DATA KE SINI
           />
         );
       
@@ -99,7 +99,7 @@ export default function App() {
           <KelolaNilaiView 
             user={currentUser} 
             showNotification={showNotification} 
-            onUpdateProgress={(prog: any) => setSharedNilaiProgress(prog)}
+            onUpdateProgress={(prog: any) => setSharedNilaiProgress(prog)} // <- TANGKAP DATA DARI SINI
           />
         );
       
