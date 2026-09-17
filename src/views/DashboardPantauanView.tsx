@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { CheckCircle2, Clock, Eye, RefreshCw, AlertCircle, Award } from 'lucide-react';
 
-export default function DashboardPantauanView({ showNotification, onNavigateToDivisi }: any) {
+export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai }: any) {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   
@@ -11,7 +11,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
   
-  // State Khusus Progres Pengisian Nilai (Berdasarkan Bulan dari Tanggal Terpilih)
+  // State Khusus Progres Pengisian Nilai
   const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
@@ -72,32 +72,19 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. Ambil Data untuk Kartu Progres Pengisian Nilai (BERDASARKAN BULAN DARI TANGGAL TERPILIH)
-      // Mengubah format tanggal (misal "2026-09-17") menjadi nama bulan (misal "September") agar cocok dengan kolom 'bulan' di tabel nilai
-      const dateObj = new Date(selectedDate);
-      const namaBulanList = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-      const targetBulanName = namaBulanList[dateObj.getMonth()];
-      const targetBulanPrefix = selectedDate.slice(0, 7); // "YYYY-MM" untuk fallback pengecekan created_at
-
+      // 5. Ambil Data untuk Kartu Progres Pengisian Nilai (Menyeluruh sesuai data nilai yang masuk)
       const [rNilai, rGuruMapel] = await Promise.all([
-        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan, created_at, tanggal'),
+        supabase.from('nilai').select('guru_id, mapel_id, kelas'),
         supabase.from('guru_mapel').select('*')
       ]);
 
-      // Filter nilai berdasarkan bulan (mengecek kolom 'bulan' atau mencocokkan string tanggal created_at)
-      const nilaiBulanList = (rNilai.data || []).filter((n: any) => {
-        const matchBulanCol = (n.bulan || '').trim().toLowerCase() === targetBulanName.toLowerCase();
-        const tgl = n.created_at || n.tanggal || '';
-        const matchTglPrefix = tgl.startsWith(targetBulanPrefix);
-        return matchBulanCol || matchTglPrefix;
-      });
-
+      const nilaiList = rNilai.data || [];
       const guruMapelList = rGuruMapel.data || [];
       const totalTargetNilai = guruMapelList.length;
 
       if (totalTargetNilai > 0) {
         const uploadedSet = new Set(
-          nilaiBulanList.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
+          nilaiList.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
         );
         let fulfilledCount = 0;
         guruMapelList.forEach((gm: any) => {
@@ -226,17 +213,26 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </p>
         </div>
 
-        {/* KARTU 3: PROGRES PENGISIAN NILAI (Berdasarkan Bulan dari Tanggal Terpilih) */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
+        {/* KARTU 3: PROGRES PENGISIAN NILAI (Klik untuk menuju halaman rekap penilaian) */}
+        <div 
+          onClick={() => {
+            if (onNavigateToNilai) onNavigateToNilai();
+          }}
+          className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
+          title="Klik untuk membuka halaman Rekapitulasi Nilai"
+        >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Progres Pengisian Nilai (Bulan Ini)</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider group-hover:text-emerald-600 transition-colors">Progres Pengisian Nilai</p>
+                <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Buka Rekap</span>
+              </div>
               <h3 className="text-3xl font-black text-emerald-600 mt-1 flex items-baseline gap-2">
                 {nilaiProgressStats.persentase}%
                 <span className="text-xs font-bold text-slate-500">Selesai</span>
               </h3>
             </div>
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-100 transition-colors">
               <Award size={22} />
             </div>
           </div>
