@@ -18,6 +18,16 @@ export default function NilaiDashboardStats({
 
   const [selectedModalData, setSelectedModalData] = useState<any | null>(null);
 
+  // Helper untuk mendapatkan Nama Wali Kelas berdasarkan Nama Kelas
+  const getWaliKelas = (kelasName: string) => {
+    const found = (options?.guru || []).find((g: any) => {
+      const roleMatch = (g.role || '').trim().toLowerCase() === 'wali_kelas';
+      const binaanMatch = (g.kelas_binaan || '').trim().toLowerCase() === (kelasName || '').trim().toLowerCase();
+      return roleMatch && binaanMatch;
+    });
+    return found ? found.nama : null;
+  };
+
   const getSingkatanUjian = (nama_ujian: string) => {
     if (!nama_ujian) return '-';
     let formatted = nama_ujian.toLowerCase();
@@ -127,14 +137,26 @@ export default function NilaiDashboardStats({
   return (
     <div className="space-y-6 w-full relative">
       
-      {/* CARD RATA-RATA NILAI TERFILTER */}
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Rata-rata Nilai (Terfilter)</h3>
-          <p className="text-xs text-slate-400">Kalkulasi berdasarkan kombinasi filter bulan, kelas, guru, dan mapel yang aktif.</p>
+      {/* CARD RATA-RATA NILAI TERFILTER & PROGRES PENGISIAN */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Rata-rata Nilai (Terfilter)</h3>
+            <p className="text-xs text-slate-400">Kalkulasi berdasarkan kombinasi filter bulan, kelas, guru, dan mapel.</p>
+          </div>
+          <div className="px-6 py-3 bg-indigo-50 border border-indigo-100 rounded-xl text-center">
+            <span className="block text-3xl font-extrabold text-indigo-700">{stats?.avgScore || '0'}</span>
+          </div>
         </div>
-        <div className="px-6 py-3 bg-indigo-50 border border-indigo-100 rounded-xl text-center">
-          <span className="block text-3xl font-extrabold text-indigo-700">{stats?.avgScore || '0'}</span>
+
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Progres Pengisian Nilai</h3>
+            <p className="text-xs text-slate-400">Berdasarkan pembagian tugas mengajar di guru_mapel.</p>
+          </div>
+          <div className="px-6 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center">
+            <span className="block text-3xl font-extrabold text-emerald-700">{stats?.progressPct || '0.0'}%</span>
+          </div>
         </div>
       </div>
 
@@ -239,59 +261,65 @@ export default function NilaiDashboardStats({
                   <td colSpan={10} className="px-5 py-10 text-center text-slate-400">Tidak ada rekapitulasi nilai yang cocok dengan filter.</td>
                 </tr>
               ) : (
-                paginatedRows.map((row, index) => (
-                  <tr 
-                    key={index} 
-                    onClick={() => setSelectedModalData(row)}
-                    className={`cursor-pointer transition-all hover:bg-indigo-50/40 ${!row.isTuntasBaik ? 'bg-rose-50/30' : ''}`}
-                  >
-                    <td className="px-5 py-4 text-center text-slate-400 font-semibold">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                    <td className="px-5 py-4 font-bold text-slate-800">{row.namaGuru}</td>
-                    
-                    <td className="px-5 py-4">
-                      <div className="font-extrabold text-indigo-600">{row.namaMapel}</div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          {row.namaUjianLabel}
-                        </span>
-                        <span className="text-[11px] font-medium text-slate-500 truncate max-w-[200px]" title={row.defaultMateri}>
-                          • {row.defaultMateri}
-                        </span>
-                      </div>
-                    </td>
+                paginatedRows.map((row, index) => {
+                  const waliKelasName = getWaliKelas(row.kelas);
+                  return (
+                    <tr 
+                      key={index} 
+                      onClick={() => setSelectedModalData(row)}
+                      className={`cursor-pointer transition-all hover:bg-indigo-50/40 ${!row.isTuntasBaik ? 'bg-rose-50/30' : ''}`}
+                    >
+                      <td className="px-5 py-4 text-center text-slate-400 font-semibold">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                      <td className="px-5 py-4 font-bold text-slate-800">{row.namaGuru}</td>
+                      
+                      <td className="px-5 py-4">
+                        <div className="font-extrabold text-indigo-600">{row.namaMapel}</div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {row.namaUjianLabel}
+                          </span>
+                          <span className="text-[11px] font-medium text-slate-500 truncate max-w-[200px]" title={row.defaultMateri}>
+                            • {row.defaultMateri}
+                          </span>
+                        </div>
+                      </td>
 
-                    <td className="px-5 py-4 text-center">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border border-slate-200 bg-slate-50 text-slate-700">{row.kelas}</span>
-                    </td>
-                    <td className="px-5 py-4 text-center text-slate-600 font-semibold">{row.kkm}</td>
-                    <td className="px-5 py-4 text-center font-bold text-slate-800">{row.jmlSiswa}</td>
-                    <td className="px-5 py-4 text-center font-bold text-slate-800">{row.rataRata}</td>
-                    
-                    <td className="px-5 py-4 text-center">
-                      <div className="font-bold text-rose-600">{row.pctKurang}%</div>
-                      <div className="text-[10px] text-slate-400">({row.jmlKurang} siswa)</div>
-                    </td>
+                      <td className="px-5 py-4 text-center">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border border-slate-200 bg-slate-50 text-slate-700">{row.kelas}</span>
+                        <div className="text-[11px] text-slate-400 font-normal mt-0.5">
+                          {waliKelasName || <span className="italic text-slate-300">Belum diset</span>}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-center text-slate-600 font-semibold">{row.kkm}</td>
+                      <td className="px-5 py-4 text-center font-bold text-slate-800">{row.jmlSiswa}</td>
+                      <td className="px-5 py-4 text-center font-bold text-slate-800">{row.rataRata}</td>
+                      
+                      <td className="px-5 py-4 text-center">
+                        <div className="font-bold text-rose-600">{row.pctKurang}%</div>
+                        <div className="text-[10px] text-slate-400">({row.jmlKurang} siswa)</div>
+                      </td>
 
-                    <td className="px-5 py-4 text-center">
-                      <div className="font-bold text-emerald-600">{row.pctTuntas}%</div>
-                      <div className="text-[10px] text-slate-400">({row.jmlTuntas} siswa)</div>
-                    </td>
+                      <td className="px-5 py-4 text-center">
+                        <div className="font-bold text-emerald-600">{row.pctTuntas}%</div>
+                        <div className="text-[10px] text-slate-400">({row.jmlTuntas} siswa)</div>
+                      </td>
 
-                    <td className="px-5 py-4 text-center">
-                      {row.isTuntasBaik ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 shadow-sm">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          Optimal
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 shadow-sm">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                          Perlu Remidi
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                      <td className="px-5 py-4 text-center">
+                        {row.isTuntasBaik ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 shadow-sm">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            Optimal
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 shadow-sm">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            Perlu Remidi
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

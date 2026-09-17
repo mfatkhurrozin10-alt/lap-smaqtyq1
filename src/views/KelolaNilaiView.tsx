@@ -42,11 +42,11 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       };
 
       const [rGuru, rSiswa, rUjian, rMapel, rGuruMapel, rNilai] = await Promise.all([
-        supabase.from('guru').select('*').order('nama'),
+        supabase.from('guru').select('id, nama, niy, role, kelas_binaan').order('nama'), // Diperbarui agar mengambil role & kelas_binaan
         fetchWithPagination((s, e) => supabase.from('siswa').select('id, nama, nis, kelas').order('nama').range(s, e)),
         supabase.from('ujian').select('id, nama_ujian, kode').order('nama_ujian'),
         supabase.from('mapel').select('id, nama_mapel, kode, kkm').order('nama_mapel'),
-        fetchWithPagination((s, e) => supabase.from('guru_mapel').select('*').range(s, e)),
+        supabase.from('guru_mapel').select('*'),
         fetchWithPagination((s, e) => supabase.from('nilai')
           .select('*, guru(nama, id), siswa(nama, nis), ujian(nama_ujian), mapel(nama_mapel, kkm)')
           .order('created_at', { ascending: false })
@@ -117,7 +117,7 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
     });
   }, [data, search, filterMapel, filterKelas, filterGuru, filterBulan]);
 
-  // Kalkulasi Statistik, Rata-rata, & Progres Pengisian Berdasarkan Filter Aktif dan guru_mapel
+  // Kalkulasi statistik, rata-rata, dan progres pengisian nilai berdasarkan filter aktif dan guru_mapel
   const stats = useMemo(() => {
     if (filteredData.length === 0) return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0, progressPct: '0.0' };
     
@@ -132,9 +132,8 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       else remedial++;
     });
 
-    // --- Perhitungan Progres Pengisian Berdasarkan guru_mapel dan Filter Aktif ---
+    // Kalkulasi Progres Pengisian Nilai berdasarkan tabel guru_mapel & filter aktif
     let targetGuruMapel = options.guruMapel;
-    
     if (filterGuru !== 'ALL') {
       targetGuruMapel = targetGuruMapel.filter((gm: any) => gm.guru_id === filterGuru);
     }
@@ -145,34 +144,24 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       targetGuruMapel = targetGuruMapel.filter((gm: any) => (gm.kelas || '').trim() === filterKelas.trim());
     }
 
-    const totalExpectedAssignments = targetGuruMapel.length;
+    const totalExpected = targetGuruMapel.length;
     let progressPct = '100.0';
 
-    if (totalExpectedAssignments > 0) {
-      const uploadedAssignments = new Set(
+    if (totalExpected > 0) {
+      const uploadedSet = new Set(
         filteredData.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
       );
-      
-      let fulfilledCount = 0;
+      let fulfilled = 0;
       targetGuruMapel.forEach((gm: any) => {
         const key = `${gm.guru_id}-${gm.mapel_id}-${(gm.kelas || '').trim()}`;
-        if (uploadedAssignments.has(key)) {
-          fulfilledCount++;
-        }
+        if (uploadedSet.has(key)) fulfilled++;
       });
-
-      progressPct = ((fulfilledCount / totalExpectedAssignments) * 100).toFixed(1);
+      progressPct = ((fulfilled / totalExpected) * 100).toFixed(1);
     } else if (filteredData.length === 0) {
       progressPct = '0.0';
     }
 
-    return { 
-      totalRecords: filteredData.length, 
-      avgScore, 
-      tuntasCount: tuntas, 
-      remedialCount: remedial,
-      progressPct 
-    };
+    return { totalRecords: filteredData.length, avgScore, tuntasCount: tuntas, remedialCount: remedial, progressPct };
   }, [filteredData, options.guruMapel, filterGuru, filterMapel, filterKelas]);
 
   const groupedByMapelAndKelas = useMemo(() => {
