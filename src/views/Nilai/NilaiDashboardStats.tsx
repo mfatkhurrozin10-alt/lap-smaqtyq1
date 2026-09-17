@@ -17,6 +17,9 @@ export default function NilaiDashboardStats({
   const itemsPerPage = 10;
 
   const [selectedModalData, setSelectedModalData] = useState<any | null>(null);
+  
+  // State untuk menampilkan Pop-up Progres Guru
+  const [showProgressModal, setShowProgressModal] = useState(false);
 
   // Helper untuk mendapatkan Nama Wali Kelas berdasarkan Nama Kelas
   const getWaliKelas = (kelasName: string) => {
@@ -137,7 +140,7 @@ export default function NilaiDashboardStats({
   return (
     <div className="space-y-6 w-full relative">
       
-      {/* CARD RATA-RATA NILAI TERFILTER & PROGRES PENGISIAN */}
+      {/* CARD RATA-RATA NILAI TERFILTER & PROGRES PENGISIAN (DAPAT DIKLIK) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -149,12 +152,20 @@ export default function NilaiDashboardStats({
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Kotak Progres Pengisian (Bisa Diklik untuk Membuka Modal Rincian Guru) */}
+        <div 
+          onClick={() => setShowProgressModal(true)}
+          className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
+          title="Klik untuk melihat rincian progres masing-masing guru"
+        >
           <div>
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Progres Pengisian Nilai</h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 group-hover:text-emerald-600 transition-colors">Progres Pengisian Nilai</h3>
+              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Rincian</span>
+            </div>
             <p className="text-xs text-slate-400">Berdasarkan pembagian tugas mengajar di guru_mapel.</p>
           </div>
-          <div className="px-6 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center">
+          <div className="px-6 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center group-hover:bg-emerald-100 transition-colors">
             <span className="block text-3xl font-extrabold text-emerald-700">{stats?.progressPct || '0.0'}%</span>
           </div>
         </div>
@@ -352,6 +363,76 @@ export default function NilaiDashboardStats({
           </div>
         )}
       </div>
+
+      {/* POP-UP / MODAL RINCIAN PROGRES MASING-MASING GURU */}
+      {showProgressModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/80 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                  <Icons.Check />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-black text-slate-900">Rincian Progres Pengisian Nilai Per Guru</h2>
+                  <p className="text-[10px] sm:text-xs font-medium text-slate-500 mt-0.5">
+                    Persentase penyelesaian tugas asesmen berdasarkan penugasan kelas & mapel aktif.
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowProgressModal(false)}
+                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+              >
+                <Icons.X />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-5 space-y-3 bg-white">
+              {(!stats?.teacherProgressList || stats.teacherProgressList.length === 0) ? (
+                <div className="py-12 text-center text-slate-400 text-xs">Tidak ada data penugasan guru ditemukan pada filter ini.</div>
+              ) : (
+                stats.teacherProgressList.map((t: any, idx: number) => {
+                  const isComplete = parseFloat(t.pct) >= 100;
+                  return (
+                    <div key={idx} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-800">{t.nama}</span>
+                        <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${isComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {t.pct}% Selesai
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Tugas Terlaksana: <b>{t.selesaiTugas}</b> dari <b>{t.totalTugas}</b> penugasan kelas mapel</span>
+                        <span>{isComplete ? '✨ Sempurna' : '⚠️ Belum Lengkap'}</span>
+                      </div>
+                      {/* Bar Progres Visual */}
+                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${isComplete ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                          style={{ width: `${Math.min(100, parseFloat(t.pct))}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-slate-500 font-medium">Total Pengajar Terdata: <b>{stats?.teacherProgressList?.length || 0}</b> guru</span>
+              <button 
+                onClick={() => setShowProgressModal(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {selectedModalData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
