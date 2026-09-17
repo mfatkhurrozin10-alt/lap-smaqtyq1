@@ -1,6 +1,6 @@
 // src/views/DashboardPantauanView.tsx
 import { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase, getCurrentMonthName } from '../services/supabase';
 import { CheckCircle2, Clock, Eye, RefreshCw, AlertCircle, Award } from 'lucide-react';
 
 export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai }: any) {
@@ -11,7 +11,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const [absensiStats, setAbsensiStats] = useState({ hadir: 0, sakit: 0, izin: 0, alfa: 0, totalSantri: 0 });
   const [jurnalStats, setJurnalStats] = useState({ terisi: 0, totalGuru: 23 });
   
-  // State Khusus Progres Pengisian Nilai
+  // State Khusus Progres Pengisian Nilai (Berdasarkan Bulan Berjalan)
   const [nilaiProgressStats, setNilaiProgressStats] = useState({ persentase: '0.0', terpenuhi: 0, totalTarget: 0 });
 
   // State Tabel Pantauan Kegiatan Harian Semua Divisi
@@ -20,7 +20,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // 1. Ambil Data Siswa (Mengikuti pola SistemAbsensiView)
+      // 1. Ambil Data Siswa
       let allSiswa: any[] = [];
       let startSiswa = 0;
       let hasMoreSiswa = true;
@@ -37,7 +37,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       if (hadirErr) throw hadirErr;
       const todayRecords = hadirList || [];
 
-      // 3. Hitung Statistik Absensi Menggunakan Logika Persis SistemAbsensiView
+      // 3. Hitung Statistik Absensi
       let sakitCount = 0;
       let izinCount = 0;
       let alfaCount = 0;
@@ -72,19 +72,25 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       const uniqueGuruJurnal = new Set(todayLogs.map((l: any) => l.guru_target).filter(Boolean));
       setJurnalStats({ terisi: uniqueGuruJurnal.size, totalGuru: 23 });
 
-      // 5. Ambil Data untuk Kartu Progres Pengisian Nilai (Menyeluruh sesuai data nilai yang masuk)
+      // 5. Ambil Data Progres Nilai (Disamakan dengan KelolaNilaiView menggunakan Filter Bulan Berjalan)
+      const currentMonthName = getCurrentMonthName(); // Contoh: "September"
       const [rNilai, rGuruMapel] = await Promise.all([
-        supabase.from('nilai').select('guru_id, mapel_id, kelas'),
+        supabase.from('nilai').select('guru_id, mapel_id, kelas, bulan, created_at, tanggal'),
         supabase.from('guru_mapel').select('*')
       ]);
 
-      const nilaiList = rNilai.data || [];
+      // Filter nilai yang hanya masuk pada bulan aktif saat ini (persis seperti di rekap nilai)
+      const nilaiBulanList = (rNilai.data || []).filter((n: any) => {
+        const matchBulanCol = (n.bulan || '').trim().toLowerCase() === currentMonthName.toLowerCase();
+        return matchBulanCol;
+      });
+
       const guruMapelList = rGuruMapel.data || [];
       const totalTargetNilai = guruMapelList.length;
 
       if (totalTargetNilai > 0) {
         const uploadedSet = new Set(
-          nilaiList.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
+          nilaiBulanList.map((n: any) => `${n.guru_id}-${n.mapel_id}-${(n.kelas || '').trim()}`)
         );
         let fulfilledCount = 0;
         guruMapelList.forEach((gm: any) => {
@@ -175,7 +181,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       {/* 3 KARTU STATISTIK ATAS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* KARTU 1: SISWA ABSEN (Berdasarkan Hari) */}
+        {/* KARTU 1: SISWA ABSEN */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
@@ -194,7 +200,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </p>
         </div>
 
-        {/* KARTU 2: GURU MENGISI JURNAL (Berdasarkan Hari) */}
+        {/* KARTU 2: GURU MENGISI JURNAL */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
@@ -213,10 +219,12 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </p>
         </div>
 
-        {/* KARTU 3: PROGRES PENGISIAN NILAI (Klik untuk menuju halaman rekap penilaian) */}
+        {/* KARTU 3: PROGRES PENGISIAN NILAI (Klik untuk navigasi ke Rekap Nilai) */}
         <div 
           onClick={() => {
-            if (onNavigateToNilai) onNavigateToNilai();
+            if (onNavigateToNilai) {
+              onNavigateToNilai();
+            }
           }}
           className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
           title="Klik untuk membuka halaman Rekapitulasi Nilai"
@@ -297,7 +305,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
                     </td>
 
                     <td className="px-6 py-4 text-center font-black text-sm">
-                      {row.isSudahInput ? (
+                      {row.isSudahItem = row.isSudahInput ? (
                         <span className="text-blue-600">{row.skorPersen}%</span>
                       ) : (
                         <span className="text-slate-300">-</span>
