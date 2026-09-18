@@ -179,7 +179,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
     fetchRekapData();
   }, [selectedDivisiId, selectedMonth]);
 
-  // Handler untuk ketik inline input yayasan
   const handleYayasanChange = (programId: string, value: string) => {
     setYayasanInputs(prev => ({
       ...prev,
@@ -187,11 +186,9 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
     }));
   };
 
-  // Tombol Simpan Global (Menyimpan seluruh baris tabel untuk bulan aktif)
   const handleSaveAllGlobal = async () => {
     setSavingGlobal(true);
     try {
-      // Ambil data bulanan yang sudah ada di database untuk bulan ini
       const { data: existingData } = await supabase
         .from('laporan_bulanan_kegiatan')
         .select('*')
@@ -202,20 +199,17 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         existingMap.set(item.program_id, item);
       });
 
-      // Lakukan loop pada semua baris rekap untuk upsert
       for (const row of rekapRows) {
         const progId = row.id;
         const currentYayasan = yayasanInputs[progId] || '';
         const foundRecord = existingMap.get(progId);
 
         if (foundRecord) {
-          // Update jika record sudah ada
           await supabase
             .from('laporan_bulanan_kegiatan')
             .update({ yayasan_capaian: currentYayasan })
             .eq('id', foundRecord.id);
         } else if (currentYayasan.trim() !== '' || row.catatan_evaluasi.trim() !== '') {
-          // Insert jika belum ada dan ada isinya
           await supabase
             .from('laporan_bulanan_kegiatan')
             .insert([{
@@ -258,13 +252,14 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
   const handleSaveModalNote = async () => {
     if (!activeProgram) return;
     try {
-      const { data: existing } = await supabase
+      const { data: existingRecords } = await supabase
         .from('laporan_bulanan_kegiatan')
         .select('id')
         .eq('program_id', activeProgram.id)
         .eq('bulan', selectedMonth)
-        .maybeSingle();
+        .limit(1);
 
+      const existing = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null;
       const currentYayasan = yayasanInputs[activeProgram.id] || '';
 
       let error;
@@ -315,7 +310,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800 relative">
-      {/* Header Utama */}
       <div className="bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-600 p-6 sm:p-8 rounded-3xl shadow-lg text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/25 backdrop-blur-md rounded-full text-xs font-bold tracking-wide">
@@ -366,7 +360,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         </div>
       </div>
 
-      {/* Tabel Data */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm border-collapse">
@@ -423,7 +416,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                         {row.realisasi}
                       </td>
 
-                      {/* Kolom Yayasan berupa Inline Input */}
                       <td className="px-3 py-3 bg-emerald-50/20 border-r border-slate-100 align-middle">
                         <input 
                           type="text"
@@ -486,7 +478,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         </div>
       </div>
 
-      {/* Modal Popup untuk Catatan Evaluasi */}
       {isModalOpen && activeProgram && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
