@@ -415,14 +415,14 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                         {row.realisasi}
                       </td>
 
-                      <td className="px-3 py-3 bg-emerald-50/20 border-r border-slate-100 align-middle">
-                      <input 
-                        type="text"
-                        value={yayasanInputs[row.id] || ''}
-                        onChange={(e) => handleYayasanChange(row.id, e.target.value)}
-                        placeholder="-"
-                        className="w-full px-2 py-1 text-xs font-black text-emerald-700 bg-transparent border border-transparent hover:border-emerald-200 focus:bg-white focus:border-emerald-500 rounded-lg outline-none transition-all placeholder:text-slate-300 placeholder:font-normal"
-                      />
+                      <td className="px-3 py-4 bg-emerald-50/25 border-r border-slate-100 align-middle">
+                        <input 
+                          type="text"
+                          value={yayasanInputs[row.id] || ''}
+                          onChange={(e) => handleYayasanChange(row.id, e.target.value)}
+                          placeholder="-"
+                          className="w-full px-2 py-1 text-sm font-black text-emerald-700 bg-transparent border border-transparent hover:border-emerald-200 focus:bg-white focus:border-emerald-500 rounded-lg outline-none transition-all placeholder:text-slate-300 placeholder:font-normal"
+                        />
                       </td>
 
                       <td className="px-6 py-5 border-r border-slate-100 font-bold text-xs">
