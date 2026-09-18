@@ -1,7 +1,7 @@
 // src/views/LaporanIkuUnitView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { FileText, Printer, Calendar, Edit3, X, Sparkles } from 'lucide-react';
+import { FileText, Printer, Calendar, Edit3, X, Sparkles, Save } from 'lucide-react';
 
 export default function LaporanIkuUnitView({ showNotification, onNavigateToKegiatan }: any) {
   const [loading, setLoading] = useState(true);
@@ -12,6 +12,11 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
   const [selectedMonth, setSelectedMonth] = useState(currentYearMonth);
   const [rekapRows, setRekapRows] = useState<any[]>([]);
 
+  // State untuk menampung perubahan nilai yayasan secara local (inline input) key: program_id
+  const [yayasanInputs, setYayasanInputs] = useState<Record<string, string>>({});
+  const [savingGlobal, setSavingGlobal] = useState(false);
+
+  // State untuk Modal Catatan Evaluasi
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProgram, setActiveProgram] = useState<any>(null);
   const [modalCatatanText, setModalCatatanText] = useState('');
@@ -59,6 +64,19 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
       if (progErr) throw progErr;
 
+      // Ambil data laporan bulanan sesuai bulan yang dipilih
+      const { data: monthlyData } = await supabase
+        .from('laporan_bulanan_kegiatan')
+        .select('*')
+        .eq('bulan', selectedMonth);
+      
+      const monthlyMap = new Map();
+      const initialYayasanState: Record<string, string> = {};
+
+      (monthlyData || []).forEach((m: any) => {
+        monthlyMap.set(m.program_id, m);
+      });
+
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const allLogs = logs || [];
 
@@ -70,8 +88,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
       (progList || []).forEach((prog: any) => {
         const ikuId = prog.iku_id;
         const matchedIku = ikuMap.get(ikuId);
-        
-        // Membaca tipe target realisasi langsung dari tabel program_kegiatan
         const targetType = prog.target_realisasi_type ? String(prog.target_realisasi_type).trim().toLowerCase() : 'percentage';
 
         const pLogs = allLogs.filter((l: any) => l.program_id === prog.id);
@@ -107,6 +123,9 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
           }
         }
 
+        const monthRecord = monthlyMap.get(prog.id) || {};
+        initialYayasanState[prog.id] = monthRecord.yayasan_capaian || '';
+
         rawRows.push({
           id: prog.id,
           iku_id: ikuId || 'unknown',
@@ -114,11 +133,10 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
           judul_iku: matchedIku?.judul_iku || matchedIku?.nama_indikator || prog.nama_program,
           target: prog.target_capaian || matchedIku?.target_deskripsi || '100%',
           realisasi: calculatedRealisasi,
-          yayasan: '',
           kegiatan: prog.nama_program || '-',
           waktu: prog.timeframe || '-',
           logs: filteredLogs,
-          catatan_evaluasi: prog.catatan_evaluasi || '' 
+          catatan_evaluasi: monthRecord.catatan_evaluasi || '' 
         });
       });
 
@@ -149,6 +167,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
       }
 
       setRekapRows(finalRows);
+      setYayasanInputs(initialYayasanState);
     } catch (err) {
       console.error(err);
     } finally {
@@ -159,6 +178,64 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
   useEffect(() => {
     fetchRekapData();
   }, [selectedDivisiId, selectedMonth]);
+
+  // Handler untuk ketik inline input yayasan
+  const handleYayasanChange = (programId: string, value: string) => {
+    setYayasanInputs(prev => ({
+      ...prev,
+      [programId]: value
+    }));
+  };
+
+  // Tombol Simpan Global (Menyimpan seluruh baris tabel untuk bulan aktif)
+  const handleSaveAllGlobal = async () => {
+    setSavingGlobal(true);
+    try {
+      // Ambil data bulanan yang sudah ada di database untuk bulan ini
+      const { data: existingData } = await supabase
+        .from('laporan_bulanan_kegiatan')
+        .select('*')
+        .eq('bulan', selectedMonth);
+
+      const existingMap = new Map();
+      (existingData || []).forEach((item: any) => {
+        existingMap.set(item.program_id, item);
+      });
+
+      // Lakukan loop pada semua baris rekap untuk upsert
+      for (const row of rekapRows) {
+        const progId = row.id;
+        const currentYayasan = yayasanInputs[progId] || '';
+        const foundRecord = existingMap.get(progId);
+
+        if (foundRecord) {
+          // Update jika record sudah ada
+          await supabase
+            .from('laporan_bulanan_kegiatan')
+            .update({ yayasan_capaian: currentYayasan })
+            .eq('id', foundRecord.id);
+        } else if (currentYayasan.trim() !== '' || row.catatan_evaluasi.trim() !== '') {
+          // Insert jika belum ada dan ada isinya
+          await supabase
+            .from('laporan_bulanan_kegiatan')
+            .insert([{
+              program_id: progId,
+              bulan: selectedMonth,
+              yayasan_capaian: currentYayasan,
+              catatan_evaluasi: row.catatan_evaluasi || ''
+            }]);
+        }
+      }
+
+      if (showNotification) showNotification('Semua perubahan laporan bulan ini berhasil disimpan!', 'success');
+      fetchRekapData();
+    } catch (err) {
+      console.error(err);
+      if (showNotification) showNotification('Gagal menyimpan perubahan.', 'error');
+    } finally {
+      setSavingGlobal(false);
+    }
+  };
 
   const handleOpenModal = (prog: any) => {
     setActiveProgram(prog);
@@ -181,19 +258,45 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
   const handleSaveModalNote = async () => {
     if (!activeProgram) return;
     try {
-      const { error } = await supabase
-        .from('program_kegiatan')
-        .update({ catatan_evaluasi: modalCatatanText })
-        .eq('id', activeProgram.id);
+      const { data: existing } = await supabase
+        .from('laporan_bulanan_kegiatan')
+        .select('id')
+        .eq('program_id', activeProgram.id)
+        .eq('bulan', selectedMonth)
+        .maybeSingle();
+
+      const currentYayasan = yayasanInputs[activeProgram.id] || '';
+
+      let error;
+      if (existing) {
+        const res = await supabase
+          .from('laporan_bulanan_kegiatan')
+          .update({ 
+            catatan_evaluasi: modalCatatanText,
+            yayasan_capaian: currentYayasan 
+          })
+          .eq('id', existing.id);
+        error = res.error;
+      } else {
+        const res = await supabase
+          .from('laporan_bulanan_kegiatan')
+          .insert([{
+            program_id: activeProgram.id,
+            bulan: selectedMonth,
+            catatan_evaluasi: modalCatatanText,
+            yayasan_capaian: currentYayasan
+          }]);
+        error = res.error;
+      }
 
       if (error) throw error;
 
-      if (showNotification) showNotification('Catatan evaluasi berhasil disimpan ke database!', 'success');
+      if (showNotification) showNotification('Catatan evaluasi berhasil disimpan!', 'success');
       setIsModalOpen(false);
       fetchRekapData();
     } catch (err) {
       console.error(err);
-      if (showNotification) showNotification('Gagal menyimpan catatan evaluasi.', 'error');
+      if (showNotification) showNotification('Gagal menyimpan catatan.', 'error');
     }
   };
 
@@ -212,6 +315,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
   return (
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800 relative">
+      {/* Header Utama */}
       <div className="bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-600 p-6 sm:p-8 rounded-3xl shadow-lg text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/25 backdrop-blur-md rounded-full text-xs font-bold tracking-wide">
@@ -231,6 +335,14 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
               className="bg-transparent text-white outline-none cursor-pointer font-bold"
             />
           </div>
+
+          <button 
+            onClick={handleSaveAllGlobal}
+            disabled={savingGlobal}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-2xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Save size={15} /> {savingGlobal ? 'Menyimpan...' : 'Simpan Semua Perubahan'}
+          </button>
 
           <button 
             onClick={() => window.print()}
@@ -254,6 +366,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         </div>
       </div>
 
+      {/* Tabel Data */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm border-collapse">
@@ -263,7 +376,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                 <th className="px-6 py-4 w-72 border-r border-slate-200">INDIKATOR (IKU)</th>
                 <th className="px-5 py-4 w-28 border-r border-slate-200">TARGET</th>
                 <th className="px-5 py-4 w-28 bg-blue-50/80 text-blue-900 border-r border-slate-200">REALISASI</th>
-                <th className="px-5 py-4 w-28 bg-emerald-50/80 text-emerald-900 border-r border-slate-200">YAYASAN</th>
+                <th className="px-5 py-4 w-32 bg-emerald-50/80 text-emerald-900 border-r border-slate-200">YAYASAN</th>
                 <th className="px-6 py-4 w-44 border-r border-slate-200">KEGIATAN</th>
                 <th className="px-5 py-4 w-28 border-r border-slate-200">WAKTU</th>
                 <th className="px-6 py-4 border-r border-slate-200">CATATAN ({formatMonthLabel(selectedMonth)})</th>
@@ -310,8 +423,15 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                         {row.realisasi}
                       </td>
 
-                      <td className="px-5 py-5 font-black text-sm bg-emerald-50/40 text-emerald-700 border-r border-slate-100 whitespace-nowrap">
-                        {row.yayasan}
+                      {/* Kolom Yayasan berupa Inline Input */}
+                      <td className="px-3 py-3 bg-emerald-50/20 border-r border-slate-100 align-middle">
+                        <input 
+                          type="text"
+                          value={yayasanInputs[row.id] || ''}
+                          onChange={(e) => handleYayasanChange(row.id, e.target.value)}
+                          placeholder="Input..."
+                          className="w-full px-2.5 py-1.5 text-xs font-bold text-emerald-900 bg-white border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                        />
                       </td>
 
                       <td className="px-6 py-5 border-r border-slate-100 font-bold text-xs">
@@ -348,11 +468,11 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                         )}
                       </td>
 
-                      <td className="px-5 py-5 text-center">
+                      <td className="px-5 py-5 text-center align-middle">
                         <button 
                           onClick={() => handleOpenModal(row)}
                           className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors shadow-2xs cursor-pointer"
-                          title="Edit / Catatan Evaluasi"
+                          title="Edit Catatan Evaluasi"
                         >
                           <Edit3 size={15} />
                         </button>
@@ -366,6 +486,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         </div>
       </div>
 
+      {/* Modal Popup untuk Catatan Evaluasi */}
       {isModalOpen && activeProgram && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -412,9 +533,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                   placeholder="Ketik catatan evaluasi di sini atau tarik otomatis dari log pengawasan..."
                   className="w-full p-4 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all resize-none leading-relaxed"
                 />
-                <p className="text-[11px] text-slate-400 italic">
-                  *Catatan akan tersimpan otomatis ke database dan tidak akan hilang saat halaman dimuat ulang.
-                </p>
               </div>
             </div>
 
