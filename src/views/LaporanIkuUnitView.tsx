@@ -387,7 +387,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                   const showMergedCell = row.rowSpan !== 0;
 
                   return (
-                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors align-top">
+                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
                       {showMergedCell && (
                         <td rowSpan={row.rowSpan} className="px-5 py-5 font-mono text-slate-400 font-bold text-center border-r border-slate-100 bg-white align-middle">
                           {row.no}
@@ -407,27 +407,31 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                         </td>
                       )}
 
-                      <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 whitespace-nowrap">
-                        {row.target}
+                      <td className="px-5 py-5 font-semibold text-slate-700 text-xs border-r border-slate-100 whitespace-nowrap align-middle">
+                        <div className="flex items-center">
+                          {row.target}
+                        </div>
                       </td>
 
-                      <td className={`px-5 py-5 font-black text-sm bg-blue-50/40 border-r border-slate-100 whitespace-nowrap ${getScoreTextColor(row.realisasi)}`}>
-                        {row.realisasi}
+                      <td className={`px-5 py-5 font-black text-sm bg-blue-50/40 border-r border-slate-100 whitespace-nowrap align-middle ${getScoreTextColor(row.realisasi)}`}>
+                        <div className="flex items-center">
+                          {row.realisasi}
+                        </div>
                       </td>
 
-                      <td className="px-3 py-5 bg-emerald-50/25 border-r border-slate-100 align-middle h-full">
-                        <div className="flex items-center h-full">
+                      <td className="px-3 py-3 bg-emerald-50/25 border-r border-slate-100 align-middle">
+                        <div className="flex items-center">
                           <input 
                             type="text"
                             value={yayasanInputs[row.id] || ''}
                             onChange={(e) => handleYayasanChange(row.id, e.target.value)}
                             placeholder="-"
-                            className="w-full px-2 py-0 text-sm font-black text-emerald-700 bg-transparent border border-transparent hover:border-emerald-200 focus:bg-white focus:border-emerald-500 rounded-lg outline-none transition-all placeholder:text-slate-300 placeholder:font-normal"
+                            className="w-full px-2 py-1 text-sm font-black text-emerald-700 bg-transparent border border-transparent hover:border-emerald-200 focus:bg-white focus:border-emerald-500 rounded-lg outline-none transition-all placeholder:text-slate-300 placeholder:font-normal"
                           />
                         </div>
                       </td>
 
-                      <td className="px-6 py-5 border-r border-slate-100 font-bold text-xs">
+                      <td className="px-6 py-5 border-r border-slate-100 font-bold text-xs align-middle">
                         {onNavigateToKegiatan ? (
                           <button 
                             onClick={() => {
@@ -438,7 +442,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                                 timeframe: row.waktu
                               });
                             }}
-                            className="text-blue-600 hover:text-blue-800 hover:underline transition-colors text-left cursor-pointer w-full"
+                            className="text-blue-600 hover:text-blue-800 hover:underline transition-colors text-left cursor-pointer w-full block"
                           >
                             {row.kegiatan}
                           </button>
@@ -447,11 +451,13 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                         )}
                       </td>
 
-                      <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium">
-                        {row.waktu}
+                      <td className="px-5 py-5 border-r border-slate-100 text-slate-600 text-xs font-medium align-middle">
+                        <div className="flex items-center">
+                          {row.waktu}
+                        </div>
                       </td>
 
-                      <td className="px-6 py-5 border-r border-slate-100">
+                      <td className="px-6 py-5 border-r border-slate-100 align-middle">
                         {row.catatan_evaluasi ? (
                           <div className="text-xs text-slate-700 whitespace-pre-line bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                             {row.catatan_evaluasi}
@@ -464,7 +470,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
                       <td className="px-5 py-5 text-center align-middle">
                         <button 
                           onClick={() => handleOpenModal(row)}
-                          className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors shadow-2xs cursor-pointer"
+                          className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl transition-colors shadow-2xs cursor-pointer inline-flex items-center justify-center"
                           title="Edit Catatan Evaluasi"
                         >
                           <Edit3 size={15} />
