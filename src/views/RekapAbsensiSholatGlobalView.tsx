@@ -445,7 +445,6 @@ export default function RekapAbsensiSholatGlobalView({ showNotification }: any) 
             <div className="p-4 overflow-y-auto divide-y divide-slate-100 space-y-2 flex-1">
               {guruList.map((guru, index) => {
                 const item = todayAbsensiMap[guru.id];
-                const status = item?.status_kehadiran || 'Hadir (Default)';
                 const isHadir = !item || item.status_kehadiran === 'Hadir';
 
                 return (
