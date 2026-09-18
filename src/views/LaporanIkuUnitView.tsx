@@ -256,8 +256,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         .from('laporan_bulanan_kegiatan')
         .select('id')
         .eq('program_id', activeProgram.id)
-        .eq('bulan', selectedMonth)
-        .limit(1);
+        .eq('bulan', selectedMonth);
 
       const existing = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null;
       const currentYayasan = yayasanInputs[activeProgram.id] || '';
