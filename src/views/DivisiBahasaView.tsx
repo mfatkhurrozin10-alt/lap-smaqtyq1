@@ -1,9 +1,9 @@
-// src/views/DivisiHumasView.tsx
+// src/views/DivisiBahasaView.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { CheckSquare, History, BarChart2, Settings, RefreshCw, Plus, Trash2, Edit, Printer, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function DivisiHumasView({ 
+export default function DivisiBahasaView({ 
   showNotification, 
   initialTab = 'form', 
   initialTimeframe = 'Harian', 
@@ -11,8 +11,8 @@ export default function DivisiHumasView({
 }: any) {
   const [loading, setLoading] = useState(true);
   const [divisiData, setDivisiData] = useState<any>({
-    nama_divisi: 'Humas',
-    nama_koordinator: 'Tim Humas'
+    nama_divisi: 'Bahasa',
+    nama_koordinator: 'Tim Bahasa'
   });
   
   const [programList, setProgramList] = useState<any[]>([]);
@@ -98,7 +98,7 @@ export default function DivisiHumasView({
     setLoading(true);
     try {
       const { data: divList } = await supabase.from('divisi').select('*');
-      const divisiObj = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('humas')) || divList?.[0];
+      const divisiObj = divList?.find((d: any) => d.nama_divisi?.toLowerCase().includes('bahasa')) || divList?.[0];
 
       if (divisiObj) {
         setDivisiData(divisiObj);
@@ -212,12 +212,12 @@ const fetchProgramDetail = async () => {
       if (editingLogId) {
         const { error } = await supabase.from('divisi_log_pengawasan').update(payload).eq('id', editingLogId);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan Humas berhasil diperbarui!', 'success');
+        if (showNotification) showNotification('Laporan Bahasa berhasil diperbarui!', 'success');
         setEditingLogId(null);
       } else {
         const { error } = await supabase.from('divisi_log_pengawasan').insert([payload]);
         if (error) throw error;
-        if (showNotification) showNotification('Laporan Humas baru berhasil disimpan!', 'success');
+        if (showNotification) showNotification('Laporan Bahasa baru berhasil disimpan!', 'success');
       }
 
       setCheckedItems({});
@@ -422,7 +422,7 @@ const fetchProgramDetail = async () => {
   };
 
   if (loading) {
-    return <div className="p-12 text-center text-slate-500 font-medium">Memuat data Divisi Humas...</div>;
+    return <div className="p-12 text-center text-slate-500 font-medium">Memuat data Divisi Bahasa...</div>;
   }
 
   const filteredProgramsByTime = programList.filter((p: any) => !p.timeframe || p.timeframe.toLowerCase() === timeframe.toLowerCase());
@@ -487,7 +487,7 @@ const fetchProgramDetail = async () => {
     <div className="space-y-6 w-full text-left pb-12 font-sans text-slate-800">
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Divisi {divisiData?.nama_divisi || 'Humas'}</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Divisi {divisiData?.nama_divisi || 'Bahasa'}</h2>
           <p className="text-sm text-slate-500 mt-0.5">Koordinator: <span className="font-semibold text-slate-700">{divisiData?.nama_koordinator || 'Tim Kurikulum'}</span></p>
         </div>
 
@@ -798,7 +798,7 @@ const fetchProgramDetail = async () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <Eye size={20} className="text-blue-600" /> Detail Hasil Pengawasan Humas
+                  <Eye size={20} className="text-blue-600" /> Detail Hasil Pengawasan Bahasa
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">Program: <span className="font-semibold text-slate-700">{selectedProgramObj?.nama_program}</span> • ID #{selectedDetailLog.id.slice(-4)}</p>
               </div>
