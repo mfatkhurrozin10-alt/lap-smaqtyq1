@@ -96,9 +96,9 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const allLogs = logs || [];
 
-      // Mengambil seluruh data nilai dengan paginasi (mengatasi batas 1000 data Supabase)
+      // Mengambil seluruh data nilai beserta relasi mapel (untuk KKM) dengan paginasi
       const resNilai = await fetchWithPagination((s, e) => 
-        supabase.from('nilai').select('*, ujian(nama_ujian)').range(s, e)
+        supabase.from('nilai').select('*, ujian(nama_ujian), mapel(kkm)').range(s, e)
       );
       const allNilai = resNilai.data || [];
 
@@ -119,7 +119,7 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
         const progNameLower = prog.nama_program?.toLowerCase() || '';
         const ikuJudulLower = (matchedIku?.judul_iku || matchedIku?.nama_indikator || '').toLowerCase();
 
-        // Cek apakah program ini masuk dalam indikator Rata-rata Nilai Ujian Sekolah Umum
+        // Cek apakah program ini masuk dalam indikator Ujian Sekolah Umum
         const isUjianProgram = ikuJudulLower.includes('rata-rata nilai ujian sekolah') || ikuJudulLower.includes('rata-rata nilai');
 
         if (targetType === 'count') {
@@ -172,22 +172,37 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
           }
 
           if (targetNilaiList.length > 0) {
-            const sumNilai = targetNilaiList.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
-            const avgMakro = sumNilai / targetNilaiList.length;
-            calculatedRealisasi = `${avgMakro.toFixed(1)}%`;
+            let tuntasCount = 0;
+            targetNilaiList.forEach((n: any) => {
+              const kkm = n.mapel?.kkm || 75;
+              const skorSiswa = Number(n.nilai || n.skor || 0);
+              if (skorSiswa >= kkm) {
+                tuntasCount++;
+              }
+            });
+            const pctTuntas = (tuntasCount / targetNilaiList.length) * 100;
+            calculatedRealisasi = `${pctTuntas.toFixed(1)}%`;
           }
         } else {
           if (progNameLower.includes('asts') || progNameLower.includes('pts')) {
             const astsNilai = allNilai.filter((n: any) => (n.kategori === 'ASTS' || n.jenis === 'ASTS') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
             if (astsNilai.length > 0) {
-              const sum = astsNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
-              calculatedRealisasi = `${(sum / astsNilai.length).toFixed(1)}%`;
+              let tuntas = 0;
+              astsNilai.forEach((n: any) => {
+                const kkm = n.mapel?.kkm || 75;
+                if (Number(n.nilai || n.skor || 0) >= kkm) tuntas++;
+              });
+              calculatedRealisasi = `${((tuntas / astsNilai.length) * 100).toFixed(1)}%`;
             }
           } else if (progNameLower.includes('ulangan harian') || progNameLower.includes('uh')) {
             const uhNilai = allNilai.filter((n: any) => (n.kategori === 'UH' || n.jenis === 'UH') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
             if (uhNilai.length > 0) {
-              const sum = uhNilai.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
-              calculatedRealisasi = `${(sum / uhNilai.length).toFixed(1)}%`;
+              let tuntas = 0;
+              uhNilai.forEach((n: any) => {
+                const kkm = n.mapel?.kkm || 75;
+                if (Number(n.nilai || n.skor || 0) >= kkm) tuntas++;
+              });
+              calculatedRealisasi = `${((tuntas / uhNilai.length) * 100).toFixed(1)}%`;
             }
           } else {
             if (filteredLogs.length > 0) {
