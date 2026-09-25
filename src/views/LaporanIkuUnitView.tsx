@@ -51,6 +51,22 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
     if (!selectedDivisiId) return;
     setLoading(true);
     try {
+      // Helper Paginasi agar dapat mengambil data lebih dari 1000 baris dari Supabase
+      const fetchWithPagination = async (queryBuilderFn: (start: number, end: number) => any) => {
+        let allData: any[] = [];
+        let start = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await queryBuilderFn(start, start + 999);
+          if (error) throw error;
+          const chunk = data || [];
+          allData = [...allData, ...chunk];
+          if (chunk.length < 1000) hasMore = false;
+          else start += 1000;
+        }
+        return { data: allData };
+      };
+
       const { data: ikuList } = await supabase.from('indikator_iku').select('*');
       const ikuMap = new Map();
       (ikuList || []).forEach((item: any) => {
@@ -80,9 +96,11 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const allLogs = logs || [];
 
-      // Ambil seluruh data nilai beserta relasi ujian untuk pencocokan makro
-      const { data: nilaiList } = await supabase.from('nilai').select('*, ujian(nama_ujian)');
-      const allNilai = nilaiList || [];
+      // Mengambil seluruh data nilai dengan paginasi (mengatasi batas 1000 data Supabase)
+      const resNilai = await fetchWithPagination((s, e) => 
+        supabase.from('nilai').select('*, ujian(nama_ujian)').range(s, e)
+      );
+      const allNilai = resNilai.data || [];
 
       let rawRows: any[] = [];
 
@@ -147,7 +165,6 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
               return ujianNama.includes('jenjang') || ujianNama.includes('akhir jenjang');
             });
           } else {
-            // Default pencocokan umum berdasarkan nama program
             targetNilaiList = nilaiBulanIni.filter((n: any) => {
               const ujianNama = (n.ujian?.nama_ujian || n.kategori || '').toLowerCase();
               return ujianNama.includes(progNameLower) || progNameLower.includes(ujianNama);
