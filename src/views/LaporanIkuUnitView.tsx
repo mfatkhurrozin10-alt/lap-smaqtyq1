@@ -80,7 +80,8 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
       const { data: logs } = await supabase.from('divisi_log_pengawasan').select('*');
       const allLogs = logs || [];
 
-      const { data: nilaiList } = await supabase.from('nilai').select('*');
+      // Ambil seluruh data nilai beserta relasi ujian untuk pencocokan makro
+      const { data: nilaiList } = await supabase.from('nilai').select('*, ujian(nama_ujian)');
       const allNilai = nilaiList || [];
 
       let rawRows: any[] = [];
@@ -98,10 +99,66 @@ export default function LaporanIkuUnitView({ showNotification, onNavigateToKegia
 
         let calculatedRealisasi = '-';
         const progNameLower = prog.nama_program?.toLowerCase() || '';
+        const ikuJudulLower = (matchedIku?.judul_iku || matchedIku?.nama_indikator || '').toLowerCase();
+
+        // Cek apakah program ini masuk dalam indikator Rata-rata Nilai Ujian Sekolah Umum
+        const isUjianProgram = ikuJudulLower.includes('rata-rata nilai ujian sekolah') || ikuJudulLower.includes('rata-rata nilai');
 
         if (targetType === 'count') {
           const totalCount = filteredLogs.length;
           calculatedRealisasi = `${totalCount} Kali`;
+        } else if (isUjianProgram) {
+          // Filter nilai berdasarkan bulan aktif yang dipilih pada Laporan IKU
+          const nilaiBulanIni = allNilai.filter((n: any) => {
+            const tanggalNilai = n.created_at || n.tanggal || '';
+            return selectedMonth ? tanggalNilai.startsWith(selectedMonth) : true;
+          });
+
+          let targetNilaiList: any[] = [];
+
+          if (progNameLower.includes('ulangan harian') || progNameLower.includes('uh')) {
+            targetNilaiList = nilaiBulanIni.filter((n: any) => {
+              const ujianNama = (n.ujian?.nama_ujian || n.kategori || '').toLowerCase();
+              return ujianNama.includes('ulangan harian') || ujianNama.includes('uh');
+            });
+          } else if (progNameLower.includes('sumatif tengah semester ganjil') || progNameLower.includes('asts gasal')) {
+            targetNilaiList = nilaiBulanIni.filter((n: any) => {
+              const ujianNama = (n.ujian?.nama_ujian || n.kategori || '').toLowerCase();
+              return (ujianNama.includes('tengah semester') || ujianNama.includes('asts')) && ujianNama.includes('ganjil');
+            });
+          } else if (progNameLower.includes('sumatif akhis semester ganjil') || progNameLower.includes('asas gasal') || progNameLower.includes('sumatif akhir semester ganjil')) {
+            targetNilaiList = nilaiBulanIni.filter((n: any) => {
+              const ujianNama = (n.ujian?.nama_ujian || n.kategori || '').toLowerCase();
+              return (ujianNama.includes('akhir semester') || ujianNama.includes('asas')) && ujianNama.includes('ganjil');
+            });
+          } else if (progNameLower.includes('sumatif akhir tahun genap') || progNameLower.includes('asat')) {
+            targetNilaiList = nilaiBulanIni.filter((n: any) => {
+              const ujianNama = (n.ujian?.nama_ujian || n.kategori || '').toLowerCase();
+              return ujianNama.includes('akhir tahun') || ujianNama.includes('asat');
+            });
+          } else if (progNameLower.includes('sumatif tengah semester genap') || progNameLower.includes('asts genap')) {
+            targetNilaiList = nilaiBulanIni.filter((n: any) => {
+              const ujianNama = (n.ujian?.nama_ujian || n.kategori || '').toLowerCase();
+              return (ujianNama.includes('tengah semester') || ujianNama.includes('asts')) && ujianNama.includes('genap');
+            });
+          } else if (progNameLower.includes('sumatif akhir jenjang') || progNameLower.includes('jenjang')) {
+            targetNilaiList = nilaiBulanIni.filter((n: any) => {
+              const ujianNama = (n.ujian?.nama_ujian || n.kategori || '').toLowerCase();
+              return ujianNama.includes('jenjang') || ujianNama.includes('akhir jenjang');
+            });
+          } else {
+            // Default pencocokan umum berdasarkan nama program
+            targetNilaiList = nilaiBulanIni.filter((n: any) => {
+              const ujianNama = (n.ujian?.nama_ujian || n.kategori || '').toLowerCase();
+              return ujianNama.includes(progNameLower) || progNameLower.includes(ujianNama);
+            });
+          }
+
+          if (targetNilaiList.length > 0) {
+            const sumNilai = targetNilaiList.reduce((acc: number, curr: any) => acc + Number(curr.nilai || curr.skor || 0), 0);
+            const avgMakro = sumNilai / targetNilaiList.length;
+            calculatedRealisasi = `${avgMakro.toFixed(1)}%`;
+          }
         } else {
           if (progNameLower.includes('asts') || progNameLower.includes('pts')) {
             const astsNilai = allNilai.filter((n: any) => (n.kategori === 'ASTS' || n.jenis === 'ASTS') && (n.created_at?.startsWith(selectedMonth) || n.tanggal?.startsWith(selectedMonth)));
