@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase, getCurrentMonthName } from '../services/supabase';
 import { CheckCircle2, Clock, Eye, RefreshCw, AlertCircle, Award } from 'lucide-react';
 
-export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai }: any) {
+export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai, onNavigateToAbsensi }: any) {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   
@@ -205,23 +205,31 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       {/* 3 KARTU STATISTIK ATAS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* KARTU 1: SISWA ABSEN */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
+        {/* KARTU 1: SISWA ABSEN (Dapat diklik untuk menuju ke rekap harian absensi) */}
+        <div 
+          onClick={() => { if (onNavigateToAbsensi) onNavigateToAbsensi(); }}
+          className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between group cursor-pointer hover:border-rose-300 transition-all"
+          title="Klik untuk membuka Rekapitulasi Absensi"
+        >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Siswa Absen (Hari Ini)</p>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider group-hover:text-rose-600 transition-colors">Siswa Absen (Hari Ini)</p>
               <h3 className="text-3xl font-black text-rose-600 mt-1 flex items-baseline gap-2">
                 {absensiStats.sakit + absensiStats.izin + absensiStats.alfa} 
                 <span className="text-xs font-bold text-slate-500">Santri</span>
               </h3>
             </div>
-            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
+            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl group-hover:bg-rose-100 transition-colors">
               <AlertCircle size={22} />
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100">
-            Sakit: {absensiStats.sakit} • Izin: {absensiStats.izin} • Alpha: {absensiStats.alfa}
-          </p>
+          
+          <div className="flex items-center justify-between text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100">
+            <span>Sakit: {absensiStats.sakit} • Izin: {absensiStats.izin} • Alpha: {absensiStats.alfa}</span>
+            <span className="text-[11px] font-bold text-rose-600 hover:underline">
+              Buka Absensi →
+            </span>
+          </div>
         </div>
 
         {/* KARTU 2: GURU MENGISI JURNAL */}

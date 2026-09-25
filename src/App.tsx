@@ -84,6 +84,7 @@ export default function App() {
             showNotification={showNotification} 
             onNavigateToDivisi={handleNavigateToKegiatan} 
             onNavigateToNilai={() => setActiveTab('rekap-penilaian')}
+            onNavigateToAbsensi={() => setActiveTab('presensi-absensi')}
             sharedNilaiProgress={sharedNilaiProgress} 
           />
         );
@@ -108,7 +109,7 @@ export default function App() {
       case 'presensi-absensi':
         return <SistemAbsensiView user={currentUser} showNotification={showNotification} />;
 
-      case 'rekap-global-guru': // <-- Routing untuk menu Presensi Guru dan Tendik
+      case 'rekap-global-guru': 
         return <RekapAbsensiSholatGlobalView showNotification={showNotification} />;
 
       case 'tabungan-santri':
