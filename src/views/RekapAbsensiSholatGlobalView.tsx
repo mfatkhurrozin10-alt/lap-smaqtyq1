@@ -99,6 +99,35 @@ export default function RekapAbsensiSholatGlobalView({ showNotification }: any) 
     return { totalGuru, hadir, sakit, izin, alfa, belumAbsen, persen };
   }, [guruList, todayAbsensiMap]);
 
+  // Kalkulasi Statistik Persentase Bulanan Keseluruhan
+  const monthlyOverallStats = useMemo(() => {
+    const totalGuru = guruList.length;
+    const totalDays = daysInMonth.length;
+    if (totalGuru === 0 || totalDays === 0) return { persen: '0.0', totalHadir: 0, totalPotensi: 0 };
+
+    let totalHadirSemua = 0;
+    let totalPotensiSemua = 0;
+
+    guruList.forEach((guru) => {
+      daysInMonth.forEach(({ day, isSunday }) => {
+        // Opsional: Jika ingin mengabaikan hari Minggu dari total potensi kehadiran bulanan
+        if (!isSunday) {
+          totalPotensiSemua++;
+          const item = absensiMap[`${guru.id}_${day}`];
+          const status = item ? item.status_kehadiran : 'Hadir'; // Default jika belum diinput dianggap hadir atau disesuaikan
+          // Hitung yang tidak hadir (Sakit, Izin, Alfa)
+          const isTdkHadir = item && (status === 'Sakit' || status === 'Izin' || status === 'Alfa');
+          if (!isTdkHadir) {
+            totalHadirSemua++;
+          }
+        }
+      });
+    });
+
+    const persen = totalPotensiSemua > 0 ? ((totalHadirSemua / totalPotensiSemua) * 100).toFixed(1) : '0.0';
+    return { persen, totalHadir: totalHadirSemua, totalPotensi: totalPotensiSemua };
+  }, [guruList, daysInMonth, absensiMap]);
+
   const getRekapSummary = (guruId: string) => {
     let s = 0, i = 0, a = 0, pc = 0, tl = 0, nfIn = 0, nfOut = 0, duhurYa = 0, asharYa = 0;
     daysInMonth.forEach(({ day }) => {
@@ -253,44 +282,73 @@ export default function RekapAbsensiSholatGlobalView({ showNotification }: any) 
         </div>
       </div>
 
-      {/* Card Persentase Kehadiran Hari Ini (Klik untuk Detail) */}
-      <div 
-        onClick={() => setShowTodayDetailModal(true)}
-        className="no-print bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-md cursor-pointer hover:shadow-lg transition-all border border-indigo-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
-      >
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">Kehadiran Hari Ini ({todayString})</span>
+      {/* Grid 2 Card Statistik: Hari Ini & Bulanan Keseluruhan */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 no-print">
+        
+        {/* Card Persentase Kehadiran Hari Ini (Klik untuk Detail) */}
+        <div 
+          onClick={() => setShowTodayDetailModal(true)}
+          className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-md cursor-pointer hover:shadow-lg transition-all border border-indigo-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+        >
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">Kehadiran Hari Ini ({todayString})</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+              {todayStats.persen}% <span className="text-xs font-normal text-indigo-300">({todayStats.hadir} dari {todayStats.totalGuru} Guru Hadir)</span>
+            </h3>
+            <p className="text-xs text-indigo-200">Klik untuk melihat rincian status kehadiran guru hari ini.</p>
           </div>
-          <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-            {todayStats.persen}% <span className="text-xs font-normal text-indigo-300">({todayStats.hadir} dari {todayStats.totalGuru} Guru Hadir)</span>
-          </h3>
-          <p className="text-xs text-indigo-200">Klik untuk melihat rincian status kehadiran guru hari ini.</p>
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex gap-2 text-center text-xs">
+              <div className="bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/10">
+                <span className="block font-bold text-emerald-300">{todayStats.hadir}</span>
+                <span className="text-[10px] text-indigo-200">Hadir</span>
+              </div>
+              <div className="bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/10">
+                <span className="block font-bold text-blue-300">{todayStats.sakit}</span>
+                <span className="text-[10px] text-indigo-200">Sakit</span>
+              </div>
+              <div className="bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/10">
+                <span className="block font-bold text-amber-300">{todayStats.izin}</span>
+                <span className="text-[10px] text-indigo-200">Izin</span>
+              </div>
+              <div className="bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/10">
+                <span className="block font-bold text-rose-300">{todayStats.alfa}</span>
+                <span className="text-[10px] text-indigo-200">Alfa</span>
+              </div>
+            </div>
+            <span className="bg-white/20 group-hover:bg-white/30 text-white p-2 rounded-xl text-xs font-bold transition-all">
+              Detail →
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-          <div className="flex gap-2 text-center text-xs">
-            <div className="bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/10">
-              <span className="block font-bold text-emerald-300">{todayStats.hadir}</span>
-              <span className="text-[10px] text-indigo-200">Hadir</span>
+
+        {/* Card Persentase Bulanan Keseluruhan */}
+        <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-md border border-emerald-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-200">Persentase Bulanan Keseluruhan ({selectedBulan})</span>
             </div>
-            <div className="bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/10">
-              <span className="block font-bold text-blue-300">{todayStats.sakit}</span>
-              <span className="text-[10px] text-indigo-200">Sakit</span>
+            <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+              {monthlyOverallStats.persen}% <span className="text-xs font-normal text-emerald-300">Rata-rata Keaktifan Guru</span>
+            </h3>
+            <p className="text-xs text-emerald-200">Akumulasi kehadiran seluruh guru sepanjang bulan terpilih.</p>
+          </div>
+          <div className="flex items-center gap-2 text-center text-xs">
+            <div className="bg-white/10 px-3 py-2 rounded-xl border border-white/10">
+              <span className="block font-bold text-emerald-300">{guruList.length}</span>
+              <span className="text-[10px] text-emerald-200">Total Guru</span>
             </div>
-            <div className="bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/10">
-              <span className="block font-bold text-amber-300">{todayStats.izin}</span>
-              <span className="text-[10px] text-indigo-200">Izin</span>
-            </div>
-            <div className="bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/10">
-              <span className="block font-bold text-rose-300">{todayStats.alfa}</span>
-              <span className="text-[10px] text-indigo-200">Alfa</span>
+            <div className="bg-white/10 px-3 py-2 rounded-xl border border-white/10">
+              <span className="block font-bold text-teal-300">{daysInMonth.length}</span>
+              <span className="text-[10px] text-emerald-200">Hari Bulan Ini</span>
             </div>
           </div>
-          <span className="bg-white/20 group-hover:bg-white/30 text-white p-2 rounded-xl text-xs font-bold transition-all">
-            Detail →
-          </span>
         </div>
+
       </div>
 
       {/* Area Cetak */}
