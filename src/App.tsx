@@ -6,7 +6,7 @@ import { Notification } from './components/UIComponents';
 // Mengimpor View Utama & Divisi Kerja
 import KelolaNilaiView from './views/KelolaNilaiView';
 import SistemAbsensiView from './views/SistemAbsensiView'; 
-import RekapAbsensiSholatGlobalView from './views/RekapAbsensiSholatGlobalView'; // <-- Import Rekap Global Presensi Guru & Tendik
+import RekapAbsensiSholatGlobalView from './views/RekapAbsensiSholatGlobalView'; 
 import KelolaTabunganAdminView from './views/KelolaTabunganAdminView';
 import KelolaPoinAdminView from './views/KelolaPoinAdminView';
 import KelolaDivisiView from './views/KelolaDivisiView';
@@ -50,7 +50,7 @@ export default function App() {
     setNavParams({
       initialProgramId: params.programId,
       initialTimeframe: params.timeframe,
-      initialTab: 'riwayat'
+      initialTab: 'riwayat' // Diarahkan ke riwayat program monitoring KBM
     });
     
     const divName = (params.namaDivisi || '').toLowerCase();
