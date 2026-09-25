@@ -120,7 +120,7 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
   // Kalkulasi statistik dan rincian daftar tugas sudah/belum per guru
   const stats = useMemo(() => {
     if (filteredData.length === 0 && options.guruMapel.length === 0) {
-      return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0, progressPct: '0.0', teacherProgressList: [] };
+      return { totalRecords: 0, avgScore: '0', tuntasCount: 0, remedialCount: 0, tuntasPct: '0.0', progressPct: '0.0', teacherProgressList: [] };
     }
     
     const totalScore = filteredData.reduce((acc, curr) => acc + (curr.nilai || 0), 0);
@@ -133,6 +133,8 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       if ((n.nilai || 0) >= kkm) tuntas++;
       else remedial++;
     });
+
+    const tuntasPct = filteredData.length > 0 ? ((tuntas / filteredData.length) * 100).toFixed(1) : '0.0';
 
     let targetGuruMapel = options.guruMapel;
     if (filterGuru !== 'ALL') {
@@ -217,6 +219,7 @@ export default function KelolaNilaiView({ showNotification, user }: any) {
       avgScore, 
       tuntasCount: tuntas, 
       remedialCount: remedial, 
+      tuntasPct,
       progressPct,
       teacherProgressList 
     };

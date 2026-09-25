@@ -141,19 +141,32 @@ export default function NilaiDashboardStats({
   return (
     <div className="space-y-6 w-full relative">
       
-      {/* CARD RATA-RATA NILAI TERFILTER & PROGRES PENGISIAN */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* 3 CARD STATISTIK ATAS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        {/* KARTU 1: RATA-RATA NILAI */}
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Rata-rata Nilai (Terfilter)</h3>
-            <p className="text-xs text-slate-400">Kalkulasi berdasarkan kombinasi filter bulan, kelas, guru, dan mapel.</p>
+            <p className="text-xs text-slate-400">Kalkulasi berdasarkan kombinasi filter.</p>
           </div>
           <div className="px-6 py-3 bg-indigo-50 border border-indigo-100 rounded-xl text-center">
             <span className="block text-3xl font-extrabold text-indigo-700">{stats?.avgScore || '0'}</span>
           </div>
         </div>
 
-        {/* Kotak Progres Pengisian */}
+        {/* KARTU 2: PERSENTASE KETUNTASAN */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Persentase Ketuntasan</h3>
+            <p className="text-xs text-slate-400">Siswa yang mencapai atau di atas KKM.</p>
+          </div>
+          <div className="px-6 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center">
+            <span className="block text-3xl font-extrabold text-emerald-700">{stats?.tuntasPct || '0.0'}%</span>
+          </div>
+        </div>
+
+        {/* KARTU 3: PROGRES PENGISIAN NILAI */}
         <div 
           onClick={() => { setExpandedTeacherName(null); setShowProgressModal(true); }}
           className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group"
@@ -161,15 +174,16 @@ export default function NilaiDashboardStats({
         >
           <div>
             <div className="flex items-center gap-1.5">
-              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 group-hover:text-emerald-600 transition-colors">Progres Pengisian Nilai</h3>
+              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 group-hover:text-emerald-600 transition-colors">Progres Pengisian</h3>
               <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Rincian</span>
             </div>
-            <p className="text-xs text-slate-400">Berdasarkan pembagian tugas mengajar di guru_mapel.</p>
+            <p className="text-xs text-slate-400">Berdasarkan pembagian tugas guru.</p>
           </div>
           <div className="px-6 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center group-hover:bg-emerald-100 transition-colors">
             <span className="block text-3xl font-extrabold text-emerald-700">{stats?.progressPct || '0.0'}%</span>
           </div>
         </div>
+
       </div>
 
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm w-full">
