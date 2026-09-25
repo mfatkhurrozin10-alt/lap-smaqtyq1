@@ -229,6 +229,7 @@ export default function SistemAbsensiView({ showNotification }: any) {
                       <tr>
                         <th className="px-5 py-4">NO</th>
                         <th className="px-5 py-4">KELAS</th>
+                        <th className="px-5 py-4">WALI KELAS</th>
                         <th className="px-5 py-4 text-center">TOTAL SISWA</th>
                         <th className="px-5 py-4 text-center text-emerald-600">HADIR</th>
                         <th className="px-5 py-4 text-center text-amber-600">SAKIT</th>
@@ -248,7 +249,9 @@ export default function SistemAbsensiView({ showNotification }: any) {
                             <td className="px-5 py-3 text-slate-400 font-mono">{idx + 1}</td>
                             <td className="px-5 py-3">
                               <div className="font-bold text-slate-800">{row.kelas}</div>
-                              <div className="text-[11px] text-slate-400 font-normal">
+                            </td>
+                            <td className="px-5 py-3">
+                              <div className="text-slate-600 font-medium">
                                 {waliKelasName || <span className="italic text-slate-300">Belum diset</span>}
                               </div>
                             </td>
@@ -355,6 +358,7 @@ export default function SistemAbsensiView({ showNotification }: any) {
                   <thead className="bg-slate-50/50 text-[11px] font-extrabold text-slate-500 border-b border-slate-100">
                     <tr>
                       <th className="px-6 py-4">KELAS</th>
+                      <th className="px-6 py-4">WALI KELAS</th>
                       <th className="px-6 py-4 text-center text-emerald-600 bg-emerald-50/30">HADIR</th>
                       <th className="px-6 py-4 text-center text-amber-600 bg-amber-50/30">SAKIT</th>
                       <th className="px-6 py-4 text-center text-blue-600 bg-blue-50/30">IZIN</th>
@@ -369,7 +373,9 @@ export default function SistemAbsensiView({ showNotification }: any) {
                         <tr key={row.kelas} className="hover:bg-slate-50/80 transition-colors">
                           <td className="px-6 py-3.5">
                             <div className="font-extrabold text-slate-800">{row.kelas}</div>
-                            <div className="text-[11px] text-slate-400 font-normal">
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <div className="text-slate-600 font-medium">
                               {waliKelasName || <span className="italic text-slate-300">Belum diset</span>}
                             </div>
                           </td>
