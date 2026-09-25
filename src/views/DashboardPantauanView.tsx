@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase, getCurrentMonthName } from '../services/supabase';
 import { CheckCircle2, Clock, Eye, RefreshCw, AlertCircle, Award } from 'lucide-react';
 
-export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai, onNavigateToAbsensi }: any) {
+export default function DashboardPantauanView({ showNotification, onNavigateToDivisi, onNavigateToNilai, onNavigateToAbsensi, onNavigateToJurnal }: any) {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   
@@ -205,7 +205,7 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
       {/* 3 KARTU STATISTIK ATAS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* KARTU 1: SISWA ABSEN (Dapat diklik untuk menuju ke rekap harian absensi) */}
+        {/* KARTU 1: SISWA ABSEN */}
         <div 
           onClick={() => { if (onNavigateToAbsensi) onNavigateToAbsensi(); }}
           className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between group cursor-pointer hover:border-rose-300 transition-all"
@@ -232,23 +232,31 @@ export default function DashboardPantauanView({ showNotification, onNavigateToDi
           </div>
         </div>
 
-        {/* KARTU 2: GURU MENGISI JURNAL */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
+        {/* KARTU 2: GURU MENGISI JURNAL (Dapat diklik menuju riwayat monitoring KBM Kurikulum) */}
+        <div 
+          onClick={() => { if (onNavigateToJurnal) onNavigateToJurnal(); }}
+          className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between group cursor-pointer hover:border-blue-300 transition-all"
+          title="Klik untuk membuka Riwayat Monitoring KBM"
+        >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Guru Mengisi Jurnal (Hari Ini)</p>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider group-hover:text-blue-600 transition-colors">Guru Mengisi Jurnal (Hari Ini)</p>
               <h3 className="text-3xl font-black text-slate-900 mt-1 flex items-baseline gap-2">
                 {jurnalStats.terisi} 
                 <span className="text-xs font-bold text-slate-500">dari {jurnalStats.totalGuru} Guru</span>
               </h3>
             </div>
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-100 transition-colors">
               <CheckCircle2 size={22} />
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100">
-            Total {jurnalStats.terisi} log jurnal pembelajaran tercatat
-          </p>
+          
+          <div className="flex items-center justify-between text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100">
+            <span>Total {jurnalStats.terisi} log jurnal pembelajaran tercatat</span>
+            <span className="text-[11px] font-bold text-blue-600 hover:underline">
+              Buka Riwayat →
+            </span>
+          </div>
         </div>
 
         {/* KARTU 3: PROGRES PENGISIAN NILAI (DILENGKAPI FILTER BULAN MANUAL) */}

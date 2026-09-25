@@ -50,7 +50,7 @@ export default function App() {
     setNavParams({
       initialProgramId: params.programId,
       initialTimeframe: params.timeframe,
-      initialTab: 'riwayat' // Diarahkan ke riwayat program monitoring KBM
+      initialTab: 'riwayat'
     });
     
     const divName = (params.namaDivisi || '').toLowerCase();
@@ -76,6 +76,14 @@ export default function App() {
     }
   };
 
+  // Handler khusus untuk mengarahkan card Jurnal Harian ke Riwayat Monitoring KBM Kurikulum
+  const handleNavigateToJurnalKurikulum = () => {
+    setNavParams({
+      initialTab: 'riwayat'
+    });
+    setActiveTab('divisi-kurikulum');
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard-pantauan':
@@ -85,6 +93,7 @@ export default function App() {
             onNavigateToDivisi={handleNavigateToKegiatan} 
             onNavigateToNilai={() => setActiveTab('rekap-penilaian')}
             onNavigateToAbsensi={() => setActiveTab('presensi-absensi')}
+            onNavigateToJurnal={handleNavigateToJurnalKurikulum} 
             sharedNilaiProgress={sharedNilaiProgress} 
           />
         );
